@@ -35,7 +35,7 @@ export const heritageLightStyles = css`
   .search span, .field span { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; margin-bottom: .25rem; text-transform: uppercase; }
   input, select { width: 100%; min-height: 44px; border: 1px solid var(--free-map-border); border-radius: var(--free-map-radius); background: var(--free-map-paper); padding: .65rem .75rem; }
   .fields { display: grid; gap: .7rem; margin-top: .7rem; }
-  .map { order: 2; position: relative; height: clamp(18rem, 45svh, 26rem); min-width: 0; background: #e9e6df; }
+  .map { order: 2; position: relative; height: clamp(18rem, 45svh, 26rem); min-width: 0; background: var(--free-map-surface-low); }
   .map-host { position: absolute; inset: 0; }
   .map-state { align-items: center; display: flex; inset: 0; justify-content: center; padding: 2rem; position: absolute; text-align: center; color: var(--free-map-muted); }
   .map-state[hidden] { display: none; }
