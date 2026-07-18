@@ -1,0 +1,41 @@
+name: Production Lighthouse matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployed origin to audit
+        required: true
+        default: https://free-maps.forkandflag.com
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-maps-production-lighthouse
+  cancel-in-progress: false
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Chrome for Testing
+        run: npx @puppeteer/browsers install chrome@151.0.7922.34 --path .cache/chrome
+      - name: Resolve Chrome path
+        run: echo "CHROME_PATH=$(find .cache/chrome -type f -name chrome -print -quit)" >> "$GITHUB_ENV"
+      - name: Run serial 45-report matrix
+        env:
+          LIGHTHOUSE_BASE_URL: ${{ inputs.base_url }}
+        run: npm run lighthouse:matrix
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-13.4.0-chrome-151.0.7922.34
+          path: artifacts/lighthouse/

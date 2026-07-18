@@ -9,7 +9,7 @@ export default defineConfig({
       r2Buckets: ["BASEMAP"],
       bindings: {
         TILE_SESSION_SECRET: ["free", "maps", "worker", "test", "only"].join("-"),
-        APP_VERSION: "0.1.0-test",
+        APP_VERSION: "0.2.0-test",
         BASEMAP_VERSION: "20260717",
         BASEMAP_KEY: "basemaps/greater-melbourne-20260717.pmtiles",
         PRODUCTION_ORIGIN: "https://free-maps.forkandflag.com",

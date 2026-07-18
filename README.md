@@ -1,92 +1,80 @@
 # Free Maps
 
-Free Maps is an ESM-only, framework-neutral map explorer for modern browsers. It combines Lit custom elements, a lazy MapLibre renderer, Protomaps/PMTiles basemaps, OpenStreetMap attribution and reusable Cloudflare R2 handlers. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
+Free Maps is an ESM-only, renderer-neutral map explorer for modern browsers. v0.2.0 combines explicitly registered Lit custom elements, an explicitly injected asynchronous renderer, protected Cloudflare R2 PMTiles helpers, and static progressively enhanced demo pages. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
 
 Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 
 ## Under the hood
 
-- Map data: © OpenStreetMap contributors
-- Basemap schema/style/assets: Protomaps
-- Tile archive: PMTiles containing vector MVT tiles
-- Browser renderer: MapLibre GL JS
-- Hosting: Cloudflare Worker + R2 range reads
+- Map data: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
+- Basemap schema/style/assets: [Protomaps](https://protomaps.com)
+- Tile archive: [PMTiles](https://docs.protomaps.com/pmtiles/) containing vector MVT tiles
+- Browser renderer: [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)
+- Hosting: [Cloudflare Worker](https://developers.cloudflare.com/workers/static-assets/) + R2 range reads
 - Demo markers: synthetic GeoJSON data clustered by MapLibre
 
 No Google Maps components or requests are involved.
 
 ## Install
 
-The v0.1.0 release includes an npm-compatible tarball. Registry publication is intentionally deferred.
+Registry publication remains deferred. Install the release tarball:
 
 ```bash
-npm install ./free-maps-0.1.0.tgz
+npm install ./free-maps-0.2.0.tgz
 ```
 
-Import only the entry points you need:
+## Custom elements
+
+Nothing registers or loads MapLibre as an import side effect. Wire both explicitly:
 
 ```ts
-import { parseFreeMapDataset, openStreetMapUrl } from "free-maps/core";
-import "free-maps/fonts.css";
-import "free-maps/element";
-```
+import { defineFreeMapElements } from "free-maps/element";
+import { createMapLibreRenderer } from "free-maps/maplibre";
 
-## Custom element
+const renderer = createMapLibreRenderer({
+  tileJsonUrl: "/tiles/melbourne.json",
+  tileSessionEndpoint: "/api/tile-session",
+  workerUrl: "/assets/maplibre-gl-csp-worker-v5.7.1.js",
+});
+defineFreeMapElements({ renderer });
 
-```ts
 const explorer = document.createElement("free-map-explorer");
-explorer.dataset = myDataset; // takes precedence over src and aborts an active fetch
-explorer.config = {
-  tileJsonUrl: "https://tiles.example.com/city.json",
-  requestHeaders: { authorization: "Bearer …" },
-  externalMapLinkBuilder: (point) =>
-    point.position ? openStreetMapUrl(point.position.lat, point.position.lng) : undefined,
-};
+explorer.data = myDataset;
+explorer.options = { labels: { explorerTitle: "Places" } };
 document.body.append(explorer);
 ```
 
-The platform already defines `HTMLElement.dataset` for `data-*` attributes. Free Maps intentionally installs an own `dataset` property on its element instances to honor the public API. TypeScript callers can use `setDataset(value)` when they want a collision-free typed spelling; both paths have identical behavior.
+`data` takes precedence over `src`. Assigning non-null `data` cancels an active dataset request; assigning `null` lets `src` load again. `activation` is `visible`, `eager`, or `manual`; manual elements load their renderer only after `activate()`.
 
-Declarative attributes are `src`, `query`, `category`, `sort`, `selected-id`, `compact`, and `loading="visible|eager"`. Methods are `reload()`, `select(id | null)`, `fitAll()`, and `resetView()`.
+Public methods are `activate()`, `reload()`, `select(id | null)`, `fitAll()`, and `resetView()`. Events are `free-map-ready`, `free-map-select`, `free-map-filter-change`, and `free-map-error`. Error codes distinguish dataset fetch/schema failures from renderer configuration/loading/runtime failures.
 
-Events bubble across Shadow DOM:
-
-- `free-map-ready` — dataset and mapped counts
-- `free-map-select` — selected id and point, or `null`
-- `free-map-filter-change` — filter state and result count
-- `free-map-error` — structured code, message, cause, and retryability
-
-### Styling
-
-The default `heritageLight` preset uses self-hosted variable Literata and Hanken Grotesk fonts. Override any `--free-map-*` custom property, or target the documented parts: `shell`, `hint`, `controls`, `search-input`, `category-select`, `sort-select`, `map`, `fit-button`, `reset-button`, `results`, `result-row`, `details`, `empty`, and `error`.
+The default shell uses system fonts. Import `free-maps/heritage.css` to opt into the self-hosted Latin-subset Hanken Grotesk and Literata theme; the fonts use `font-display: optional` and metric-adjusted fallbacks.
 
 ## React
 
-React is an optional peer dependency:
+React is an optional peer. The wrapper requires the renderer prop and never imports MapLibre:
 
 ```tsx
 import { FreeMapExplorer } from "free-maps/react";
+import { createMapLibreRenderer } from "free-maps/maplibre";
 
+const renderer = createMapLibreRenderer({ tileJsonUrl: "/tiles/city.json" });
 export function Places() {
-  return <FreeMapExplorer dataset={dataset} config={config} onSelect={console.log} />;
+  return <FreeMapExplorer data={data} renderer={renderer} />;
 }
 ```
 
-## Dataset contract
+## Dataset and rendering contracts
 
-`FreeMapDataset` is the stable schema-version-1 contract described by `free-maps/core`. Invalid schemas, duplicate point ids, unknown point categories, missing category parents and recursive member cycles are rejected before rendering. Points without coordinates or outside `validBounds` stay searchable in the list as “Map unavailable” and never enter clusters or fit calculations.
+`FreeMapDataset` remains schema version 1. Invalid schemas, duplicate point ids, unknown categories and recursive category graphs are rejected before rendering. `MapRendererFactory` is asynchronous; renderer instances implement `mount`, `update`, `fitBounds`, `resetView`, and `destroy`.
 
-## Rendering and routing
+MapLibre-specific styles, sessions, request headers, worker URL, pixel-ratio ceiling and fade settings live only in `MapLibreRendererOptions`. Renderer-neutral labels, formatters, link builders and point eligibility live in `FreeMapElementOptions`.
 
-`MapRendererFactory` makes rendering injectable. v0.1.0 ships one implementation from `free-maps/maplibre`; consumers can provide another factory without changing the element. The default renderer lazy-loads only after visible/eager activation, clusters GeoJSON points, synchronizes selection through feature state, and disposes its MapLibre instance when disconnected.
+## Demo routes and Cloudflare
 
-Routing stays outside the component. The demo maps `q`, `category`, `sort`, and `point` parameters to element state and restores them on `popstate`.
+The Vite MPA builds `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, and `/stress/`. The explorer preserves `q`, `category`, `sort`, and `point`; v0.1 `?view=` URLs are intentionally unsupported. React loads only on `/react/`. Unknown routes use a real `404.html`.
 
-## Cloudflare
-
-`free-maps/cloudflare` exports the HMAC tile-session and direct R2 PMTiles helpers used by the demo Worker. The deployment uses static assets in SPA mode with Worker-first handling limited to `/api/*` and `/tiles/*`, so JS, CSS, fonts and sprites remain on the static asset path.
-
-The hosted tiles are demo-only and origin-bound. Downstream deployments must provide their own archive, tile endpoint and session secret. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+Cloudflare Worker-first routing is restricted to `/api/*` and `/tiles/*`. The protected PMTiles flow issues origin-bound sessions and reads the retained Greater Melbourne archive from R2. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/MIGRATION_v0.2.md](docs/MIGRATION_v0.2.md).
 
 ## Development
 
@@ -94,8 +82,10 @@ The hosted tiles are demo-only and origin-bound. Downstream deployments must pro
 npm ci
 npm run assets:sync
 npm run test:all
+npm run check:boundaries
+npm run check:budgets
 npx playwright install chromium
 npm run test:e2e
 ```
 
-No Fork & Flag dev server or source mutation is required. The source repository is independent and MIT licensed.
+The production Lighthouse matrix uses Lighthouse 13.4.0 with Chrome for Testing 151.0.7922.34. Set `CHROME_PATH` and `LIGHTHOUSE_BASE_URL`, then run `npm run lighthouse:matrix` to generate 45 JSON/HTML reports plus score matrices.

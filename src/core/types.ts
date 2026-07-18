@@ -50,12 +50,7 @@ export interface FreeMapLabels {
   details?: string;
 }
 
-export interface FreeMapConfig {
-  rendererFactory?: MapRendererFactory;
-  style?: unknown;
-  tileJsonUrl?: string;
-  tileSessionEndpoint?: string;
-  requestHeaders?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
+export interface FreeMapElementOptions {
   labels?: FreeMapLabels;
   formatScore?: (point: FreeMapPoint) => string;
   formatMeta?: (point: FreeMapPoint) => string;
@@ -76,21 +71,23 @@ export interface MapRendererState {
   dataset: FreeMapDataset;
   points: RenderablePoint[];
   selectedId: string | null;
-  config: FreeMapConfig;
+  options: FreeMapElementOptions;
 }
 
 export interface MapRenderer {
   mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void): void | Promise<void>;
   update(state: MapRendererState): void | Promise<void>;
-  fitAll(): void;
+  fitBounds(bounds: [west: number, south: number, east: number, north: number]): void;
   resetView(): void;
   destroy(): void;
 }
 
-export type MapRendererFactory = () => MapRenderer | Promise<MapRenderer>;
+export type MapRendererFactory = () => Promise<MapRenderer>;
+
+export type FreeMapActivation = "visible" | "eager" | "manual";
 
 export interface FreeMapErrorDetail {
-  code: "dataset" | "fetch" | "renderer" | "configuration";
+  code: "dataset-fetch" | "dataset-schema" | "renderer-configuration" | "renderer-loading" | "renderer-runtime";
   message: string;
   cause?: unknown;
   retryable: boolean;

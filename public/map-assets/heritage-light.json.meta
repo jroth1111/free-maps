@@ -1,0 +1,10 @@
+{
+  "generatedBy": "scripts/generate-map-assets.mjs",
+  "labelFace": "Noto Sans Regular",
+  "omitted": [
+    "pois",
+    "transit",
+    "airport",
+    "shield"
+  ]
+}

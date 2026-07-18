@@ -53,7 +53,13 @@ describe("search, sorting, bounds and links", () => {
   it("round-trips supported URL state and creates OSM links", () => {
     const state = parseUrlState("/?q=ramen&category=asian&sort=name&point=a");
     expect(state).toEqual({ query: "ramen", category: "asian", sort: "name", point: "a" });
-    expect(applyUrlState(new URL("https://example.test/?view=full"), state).search).toContain("view=full");
+    expect(applyUrlState(new URL("https://example.test/?campaign=spring"), state).search).toContain("campaign=spring");
     expect(openStreetMapUrl(-37.81, 144.96)).toBe("https://www.openstreetmap.org/?mlat=-37.81&mlon=144.96#map=17/-37.81/144.96");
+  });
+  it("filters and sorts 5,000 points under the 100 ms p95 budget", () => {
+    const points = Array.from({ length: 5000 }, (_, index) => ({ ...dataset.points[0]!, id: `perf-${index}`, title: `Place ${index}`, rank: index + 1 }));
+    const indexed = indexPoints(points); const samples: number[] = [];
+    for (let run = 0; run < 30; run++) { const start = performance.now(); filterAndSortPoints(indexed, dataset.categories, run % 2 ? "Place 4" : "", "japanese", run % 3 ? "ranking" : "name"); samples.push(performance.now() - start); }
+    samples.sort((a, b) => a - b); expect(samples[Math.floor(samples.length * .95)]).toBeLessThan(100);
   });
 });

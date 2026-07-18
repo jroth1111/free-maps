@@ -19,13 +19,13 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   });
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
 
-  await page.goto(`${liveBaseURL}/playwright-live-${testInfo.project.name}?view=full`, { waitUntil: "networkidle" });
+  await page.goto(`${liveBaseURL}/`, { waitUntil: "networkidle" });
   const explorer = page.locator("free-map-explorer");
   await expect(explorer).toBeVisible();
-  await explorer.evaluate((element) => { (element as HTMLElement & { loading: "eager" }).loading = "eager"; });
+  await explorer.evaluate((element) => (element as HTMLElement & { activate(): Promise<void> }).activate());
   const canvas = explorer.locator("canvas");
   await expect(canvas).toBeVisible({ timeout: 60_000 });
-  await expect.poll(async () => explorer.evaluate((element) => Boolean((element as HTMLElement & { readyEmitted?: boolean }).readyEmitted)), { timeout: 60_000 }).toBe(true);
+  await expect(explorer.locator(".map-state")).toBeHidden({ timeout: 60_000 });
   await expect(explorer.locator(".maplibregl-ctrl-attrib-inner")).toContainText("Protomaps");
   await expect(explorer.locator(".maplibregl-ctrl-attrib-inner")).toContainText("OpenStreetMap");
 

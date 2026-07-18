@@ -12,5 +12,5 @@ export default defineConfig({
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
   ],
-  webServer: liveBaseURL ? undefined : { command: "npm run dev", url: "http://127.0.0.1:4173", reuseExistingServer: !process.env.CI, timeout: 120_000 },
+  webServer: liveBaseURL ? undefined : { command: "npm run preview:test", url: "http://127.0.0.1:4173", reuseExistingServer: false, timeout: 120_000 },
 });

@@ -13,11 +13,9 @@ export const heritageLightStyles = css`
     --free-map-gold: #b58b34;
     --free-map-radius: 0.35rem;
     --free-map-row-height: 88px;
-    --free-map-font-serif: "Literata", Georgia, serif;
-    --free-map-font-sans: "Hanken Grotesk", system-ui, sans-serif;
     color: var(--free-map-text);
     display: block;
-    font-family: var(--free-map-font-sans);
+    font-family: var(--free-map-font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
     line-height: 1.45;
   }
   *, *::before, *::after { box-sizing: border-box; }
@@ -26,11 +24,11 @@ export const heritageLightStyles = css`
   button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, var(--free-map-accent) 45%, transparent); outline-offset: 2px; }
   .shell { border: 1px solid var(--free-map-border); background: var(--free-map-surface); min-width: 0; overflow: hidden; }
   .tip { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid var(--free-map-border); background: color-mix(in srgb, var(--free-map-gold) 12%, var(--free-map-surface-low)); font-size: .875rem; }
-  .tip strong { color: #795b1f; }
+  .tip strong { color: var(--free-map-text); }
   .tip button { border: 0; background: transparent; cursor: pointer; min-width: 44px; min-height: 44px; margin: -.65rem; }
   .layout { display: grid; min-width: 0; }
   .controls { order: 1; padding: 1rem; border-bottom: 1px solid var(--free-map-border); background: var(--free-map-surface-low); }
-  h1, h2 { font-family: var(--free-map-font-serif); margin: 0; line-height: 1.15; }
+  h1, h2 { font-family: var(--free-map-font-serif, Georgia, serif); margin: 0; line-height: 1.15; }
   h1 { font-size: 1.25rem; }
   .lede { color: var(--free-map-muted); font-size: .875rem; margin: .35rem 0 0; }
   .search { display: block; margin-top: .85rem; }
@@ -49,8 +47,8 @@ export const heritageLightStyles = css`
   .row button { width: 100%; border: 0; border-left: 4px solid transparent; background: transparent; cursor: pointer; padding: .8rem 1rem; text-align: left; }
   .row button:hover { background: var(--free-map-surface-low); }
   .row button[aria-current="true"] { border-left-color: var(--free-map-gold); background: color-mix(in srgb, var(--free-map-gold) 10%, transparent); }
-  .title { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-family: var(--free-map-font-serif); font-weight: 650; }
-  .score { color: var(--free-map-accent); font-family: var(--free-map-font-sans); font-size: .78rem; white-space: nowrap; }
+  .title { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-family: var(--free-map-font-serif, Georgia, serif); font-weight: 650; }
+  .score { color: var(--free-map-accent); font-family: var(--free-map-font-sans, system-ui, sans-serif); font-size: .78rem; white-space: nowrap; }
   .meta, .summary { color: var(--free-map-muted); font-size: .8rem; margin-top: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .unavailable { color: var(--free-map-accent); font-size: .75rem; font-weight: 700; }
   .empty { display: grid; min-height: 16rem; place-items: center; padding: 2rem; text-align: center; color: var(--free-map-muted); }

@@ -21,7 +21,7 @@ describe("Worker endpoints", () => {
     await env.BASEMAP.put("basemaps/greater-melbourne-20260717.pmtiles", fixture);
     const context = createExecutionContext();
     const health = await worker.fetch(request("/api/health"), env as unknown as Env, context);
-    expect(health.status).toBe(200); expect(await health.json()).toMatchObject({ ok: true, version: "0.1.0-test", basemapVersion: "20260717" });
+    expect(health.status).toBe(200); expect(await health.json()).toMatchObject({ ok: true, version: "0.2.0-test", basemapVersion: "20260717" });
     const first = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, context);
     expect(first.status).toBe(200); expect((await first.json() as { points: unknown[] }).points).toHaveLength(250);
     const cached = await worker.fetch(request("/api/v1/demo-dataset?size=250", { headers: { "if-none-match": first.headers.get("etag")! } }), env as unknown as Env, context);
@@ -48,6 +48,13 @@ describe("Worker endpoints", () => {
     expect((await worker.fetch(request("/tiles/20260717/melbourne/25/0/0.mvt", { headers }), env as unknown as Env, context)).status).toBe(400);
     expect((await worker.fetch(new Request("http://localhost/tiles/melbourne.json", { headers: { origin: "http://localhost:9999", authorization: `Bearer ${token}` } }), env as unknown as Env, context)).status).toBe(401);
     await waitOnExecutionContext(context);
+  });
+
+  it("issues a same-origin browser session when Chromium omits Origin", async () => {
+    const context = createExecutionContext();
+    const response = await worker.fetch(new Request("http://localhost:4173/api/tile-session", { method: "POST", headers: { referer: "http://localhost:4173/" } }), env as unknown as Env, context);
+    expect(response.status).toBe(200);
+    expect((await response.json() as { token?: string }).token).toBeTruthy();
   });
 
   it("accepts a same-origin tile GET when the browser omits Origin", async () => {
