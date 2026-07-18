@@ -2,11 +2,16 @@
 
 The production topology is one Worker named `free-maps`, one private R2 bucket named `free-maps-basemap`, and one custom domain: `free-maps.forkandflag.com`.
 
+The zone already has a `*.forkandflag.com/*` route for the Fork & Flag Worker. Because Worker Routes take precedence over Custom Domains, this project also owns the more-specific `free-maps.forkandflag.com/*` route. Cloudflare selects that route without changing or disabling the existing wildcard.
+
 ## Archive
 
 - Source build: `https://build.protomaps.com/20260717.pmtiles`
 - Extract bounds: `143.8,-38.8,146.3,-37.1`
 - R2 key: `basemaps/greater-melbourne-20260717.pmtiles`
+- Size: `165359677` bytes
+- SHA-256: `4f01f7c811e855bd8ff788321aea02b3543be0d20a73d625851bef01e013e400`
+- R2 ETag: `"2ed7540f4d2ead6cc0168f973f385e2b"`
 - The object is immutable and versioned. Never overwrite or delete it during rollback.
 
 ```bash
@@ -30,5 +35,7 @@ Stable TileJSON caches for five minutes. Versioned tiles cache for one year with
 ## Verification and rollback
 
 Record the archive byte size, SHA-256, R2 ETag, new deployment id and previous deployment id in the release evidence. Verify health, dataset 250/5000, token denial/issuance, TileJSON, one non-empty tile, cache miss-to-hit behavior, CSP, attribution and desktop/mobile UI.
+
+There was no pre-existing `free-maps` Worker when v0.1.0 provisioning began. The deployment immediately before the final route-specific cutover was `544c4ed2-4248-446b-8e3b-c2166c6be979`; the earlier verified Workers.dev build was `968e059c-1ecd-48ee-a3df-7782eea78fda`.
 
 Rollback activates the previous Worker deployment. It does not mutate the versioned R2 object.
