@@ -22,6 +22,7 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   await page.goto(`${liveBaseURL}/`, { waitUntil: "networkidle" });
   const explorer = page.locator("free-map-explorer");
   await expect(explorer).toBeVisible();
+  await page.evaluate(() => customElements.whenDefined("free-map-explorer"));
   await explorer.evaluate((element) => (element as HTMLElement & { activate(): Promise<void> }).activate());
   const canvas = explorer.locator("canvas");
   await expect(canvas).toBeVisible({ timeout: 60_000 });
