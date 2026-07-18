@@ -4,6 +4,17 @@ Free Maps is an ESM-only, framework-neutral map explorer for modern browsers. It
 
 Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 
+## Under the hood
+
+- Map data: © OpenStreetMap contributors
+- Basemap schema/style/assets: Protomaps
+- Tile archive: PMTiles containing vector MVT tiles
+- Browser renderer: MapLibre GL JS
+- Hosting: Cloudflare Worker + R2 range reads
+- Demo markers: synthetic GeoJSON data clustered by MapLibre
+
+No Google Maps components or requests are involved.
+
 ## Install
 
 The v0.1.0 release includes an npm-compatible tarball. Registry publication is intentionally deferred.

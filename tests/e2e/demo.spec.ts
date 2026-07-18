@@ -36,6 +36,14 @@ test("full explorer paints, clusters, supports keyboard/deep links, and makes no
   const accessibility = await new AxeBuilder({ page }).include("free-map-explorer").analyze();
   expect(accessibility.violations).toEqual([]);
   expect(requests.some((url) => /google/i.test(url))).toBe(false);
+  const footer = page.locator("footer");
+  await expect(footer).toContainText("Map data: © OpenStreetMap contributors");
+  await expect(footer).toContainText("Basemap schema/style/assets: Protomaps");
+  await expect(footer).toContainText("Tile archive: PMTiles containing vector MVT tiles");
+  await expect(footer).toContainText("Browser renderer: MapLibre GL JS");
+  await expect(footer).toContainText("Hosting: Cloudflare Worker + R2 range reads");
+  await expect(footer).toContainText("Demo markers: synthetic GeoJSON data clustered by MapLibre");
+  await expect(footer).toContainText("No Google Maps components or requests are involved.");
   await page.screenshot({ path: testInfo.outputPath("full-explorer.png"), fullPage: true });
 });
 
