@@ -1,0 +1,13 @@
+node_modules/
+dist/
+demo-dist/
+worker-dist/
+artifacts/
+playwright-report/
+test-results/
+coverage/
+.wrangler/
+.dev.vars
+basemap/
+*.log
+.DS_Store
