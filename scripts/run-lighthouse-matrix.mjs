@@ -32,7 +32,10 @@ for (const route of routes) for (const profile of selectedProfiles) for (let run
     const scores = Object.fromEntries(categories.map((id) => [id, result.lhr.categories[id]?.score ?? 0]));
     rows.push({ route, profile, run, scores });
     console.log(`${route} ${profile} ${run}: ${categories.map((id) => `${id}=${Math.round(scores[id] * 100)}`).join(" ")}`);
-  } finally { await chrome.kill(); }
+  } finally {
+    try { await chrome.kill(); }
+    catch (error) { console.warn(`Chrome cleanup warning after completed report: ${error instanceof Error ? error.message : String(error)}`); }
+  }
 }
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 const matrix = [];
