@@ -82,7 +82,7 @@
     "check:licenses": "license-checker-rseidelsohn --production --summary",
     "check:dependencies": "npm audit --omit=dev --audit-level=high",
     "assets:sync": "node scripts/sync-map-assets.mjs",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "node scripts/deploy.mjs",
     "cf:types": "wrangler types",
     "basemap:extract": "node scripts/extract-basemap.mjs",
     "basemap:verify": "node scripts/verify-basemap.mjs",
