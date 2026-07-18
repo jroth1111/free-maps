@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   Permissions-Policy: geolocation=(), camera=(), microphone=()
@@ -12,3 +12,27 @@
 
 /sprites/*
   Cache-Control: public, max-age=31536000, immutable
+
+/map-assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/embed/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/states/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/vanilla/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/react/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/stress/
+  Cache-Control: public, max-age=0, must-revalidate

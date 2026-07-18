@@ -14,4 +14,4 @@ for (const [source, name] of assets) {
   copyFileSync(resolve(root, source), resolve(root, "public/fonts/ui", name));
 }
 const css = readFileSync(resolve(root, "src/element/fonts.css"), "utf8").replaceAll("/fonts/ui/", "./assets/");
-writeFileSync(resolve(root, "dist/fonts.css"), css);
+writeFileSync(resolve(root, "dist/heritage.css"), css);

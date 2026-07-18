@@ -1,0 +1,13 @@
+# Free Maps
+
+Free Maps is an MIT-licensed, renderer-neutral map element toolkit. The demo uses MapLibre GL JS, Protomaps styling, OpenStreetMap data, protected PMTiles and synthetic GeoJSON markers.
+
+Canonical routes:
+- [Explorer](https://free-maps.forkandflag.com/)
+- [Compact embeds](https://free-maps.forkandflag.com/embed/)
+- [Element states](https://free-maps.forkandflag.com/states/)
+- [Vanilla integration](https://free-maps.forkandflag.com/vanilla/)
+- [React integration](https://free-maps.forkandflag.com/react/)
+- [5,000-point stress test](https://free-maps.forkandflag.com/stress/)
+
+No Google Maps components or requests are involved.

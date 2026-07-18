@@ -13,12 +13,12 @@
   "assets": {
     "directory": "./demo-dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
+    "not_found_handling": "404-page",
     "run_worker_first": ["/api/*", "/tiles/*"]
   },
   "r2_buckets": [{ "binding": "BASEMAP", "bucket_name": "free-maps-basemap" }],
   "vars": {
-    "APP_VERSION": "0.1.0",
+    "APP_VERSION": "0.2.0",
     "BASEMAP_VERSION": "20260717",
     "BASEMAP_KEY": "basemaps/greater-melbourne-20260717.pmtiles",
     "PRODUCTION_ORIGIN": "https://free-maps.forkandflag.com"

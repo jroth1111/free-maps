@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
     steps:
@@ -27,6 +27,7 @@ jobs:
       - run: npm run build
       - run: npx wrangler deploy --dry-run --outdir worker-dist
       - run: npm run check:budgets
+      - run: npm run check:boundaries
       - run: npm run check:forbidden
       - run: npm run check:licenses
       - run: npm run check:dependencies

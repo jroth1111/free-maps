@@ -22,7 +22,13 @@ const allowedOrigin = (request: Request, env: Env) => {
   const requestUrl = new URL(request.url);
   const productionHost = new URL(env.PRODUCTION_ORIGIN).hostname;
   const isProduction = requestUrl.hostname === productionHost;
-  return origin === env.PRODUCTION_ORIGIN || (!isProduction && (isLocalOrigin(origin) || origin === requestUrl.origin)) ? origin : null;
+  if (origin === env.PRODUCTION_ORIGIN || (!isProduction && (isLocalOrigin(origin) || origin === requestUrl.origin))) return origin;
+  const referer = request.headers.get("referer");
+  if (!origin && referer) {
+    const refererOrigin = new URL(referer).origin;
+    if (refererOrigin === requestUrl.origin && (requestUrl.origin === env.PRODUCTION_ORIGIN || !isProduction && isLocalOrigin(requestUrl.origin))) return requestUrl.origin;
+  }
+  return null;
 };
 const allowedTileOrigin = (request: Request, env: Env) => {
   const supplied = request.headers.get("origin");

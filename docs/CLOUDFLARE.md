@@ -34,8 +34,8 @@ Stable TileJSON caches for five minutes. Versioned tiles cache for one year with
 
 ## Verification and rollback
 
-Record the archive byte size, SHA-256, R2 ETag, new deployment id and previous deployment id in the release evidence. Verify health, dataset 250/5000, token denial/issuance, TileJSON, one non-empty tile, cache miss-to-hit behavior, CSP, attribution and desktop/mobile UI.
+Record the archive byte size, SHA-256, R2 ETag, new deployment id and previous deployment id in the release evidence. Verify health, dataset 250/5000, token denial/issuance, TileJSON, one non-empty tile, cache miss-to-hit behavior, CSP, attribution and desktop/mobile UI. v0.2 uses static multi-page assets with `not_found_handling = "404-page"`; Worker-first routing remains restricted to `/api/*` and `/tiles/*`.
 
 There was no pre-existing `free-maps` Worker when v0.1.0 provisioning began. The deployment immediately before the final route-specific cutover was `544c4ed2-4248-446b-8e3b-c2166c6be979`; the earlier verified Workers.dev build was `968e059c-1ecd-48ee-a3df-7782eea78fda`.
 
-Rollback activates the previous Worker deployment. It does not mutate the versioned R2 object.
+The production deployment immediately before v0.2 work began was `a46a7d85-de35-478b-a48c-0056f07a4e6e` (Worker version `45f337e9-ea8b-4ffd-a68f-4ac954e1d93a`). Rollback activates that deployment and does not mutate the versioned R2 object.

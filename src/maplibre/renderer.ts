@@ -1,7 +1,8 @@
-import maplibregl, { type GeoJSONSource, type Map as MapLibreMap, type StyleSpecification } from "maplibre-gl";
+import maplibregl from "maplibre-gl/dist/maplibre-gl-csp";
+import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import type { FeatureCollection, Point } from "geojson";
-import { calculateBounds, type MapRenderer, type MapRendererState } from "../core";
-import { buildHeritageLightStyle } from "./style";
+import { type MapRenderer, type MapRendererState } from "../core";
+import { loadHeritageLightStyle } from "./style";
 
 const SOURCE = "free-map-points";
 const CLUSTERS = "free-map-clusters";
@@ -13,10 +14,26 @@ function geojson(state: MapRendererState): FeatureCollection<Point> {
   return { type: "FeatureCollection", features: state.points.map((point) => ({ type: "Feature", id: point.id, geometry: { type: "Point", coordinates: [point.lng, point.lat] }, properties: { id: point.id, title: point.title } })) };
 }
 
-async function resolveHeaders(state: MapRendererState): Promise<HeadersInit> {
-  let headers = typeof state.config.requestHeaders === "function" ? await state.config.requestHeaders() : state.config.requestHeaders ?? {};
-  if (state.config.tileSessionEndpoint) {
-    const response = await fetch(state.config.tileSessionEndpoint, { method: "POST", headers: { accept: "application/json" } });
+export interface MapLibreRendererOptions {
+  style?: StyleSpecification;
+  styleUrl?: string;
+  tileJsonUrl?: string;
+  tileSessionEndpoint?: string;
+  requestHeaders?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
+  workerUrl?: string;
+  devicePixelRatioCeiling?: number;
+  fadeDuration?: number;
+  sharedWorkerPool?: boolean;
+  initializationDelayMs?: number;
+}
+
+let initializationQueue = Promise.resolve();
+let prewarmed = false;
+
+async function resolveHeaders(options: MapLibreRendererOptions): Promise<HeadersInit> {
+  let headers = typeof options.requestHeaders === "function" ? await options.requestHeaders() : options.requestHeaders ?? {};
+  if (options.tileSessionEndpoint) {
+    const response = await fetch(options.tileSessionEndpoint, { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: "{}" });
     if (!response.ok) throw new Error(`Tile session failed with ${response.status}`);
     const body = await response.json() as { token?: string };
     if (!body.token) throw new Error("Tile session response did not include a token");
@@ -31,6 +48,8 @@ export class MapLibreRenderer implements MapRenderer {
   private onSelect?: (id: string) => void;
   private selected?: string;
 
+  constructor(private options: MapLibreRendererOptions = {}) {}
+
   async mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void) {
     if (this.map) { await this.update(state); return; }
     this.state = state;
@@ -39,31 +58,45 @@ export class MapLibreRenderer implements MapRenderer {
     stylesheet.dataset.freeMapsMaplibre = "";
     stylesheet.textContent = MAPLIBRE_SHADOW_CSS;
     container.before(stylesheet);
-    const headers = await resolveHeaders(state);
-    const style = (state.config.style ?? buildHeritageLightStyle(state.config.tileJsonUrl ?? "/tiles/melbourne.json")) as StyleSpecification;
+    const delay = this.options.initializationDelayMs ?? 80;
+    const turn = initializationQueue.then(() => new Promise<void>((resolve) => setTimeout(resolve, delay)));
+    initializationQueue = turn.catch(() => undefined);
+    await turn;
+    const headers = await resolveHeaders(this.options);
+    const style = this.options.style ?? await loadHeritageLightStyle(this.options.styleUrl);
+    if (this.options.tileJsonUrl && style.sources.protomaps && "url" in style.sources.protomaps) style.sources.protomaps.url = new URL(this.options.tileJsonUrl, location.origin).href;
+    maplibregl.setWorkerUrl(this.options.workerUrl ?? "/assets/maplibre-gl-csp-worker-v5.7.1.js");
+    if (this.options.sharedWorkerPool !== false && !prewarmed) { maplibregl.prewarm(); prewarmed = true; }
+    const sameOriginTiles = this.options.tileJsonUrl?.startsWith("/") ?? false;
     const map = new maplibregl.Map({
       container,
       style,
       center: [state.dataset.center.lng, state.dataset.center.lat],
       zoom: state.dataset.defaultZoom,
       attributionControl: { compact: true },
-      transformRequest: (url) => ({ url, headers: Object.fromEntries(new Headers(headers)) }),
+      fadeDuration: this.options.fadeDuration ?? 0,
+      pixelRatio: Math.min(globalThis.devicePixelRatio || 1, this.options.devicePixelRatioCeiling ?? 1.5),
+      transformRequest: (url: string) => {
+        const resolved = new URL(url, location.href);
+        if (sameOriginTiles && resolved.pathname.startsWith("/tiles/")) url = `${location.origin}${resolved.pathname}${resolved.search}`;
+        return { url, headers: Object.fromEntries(new Headers(headers)) };
+      },
     });
     this.map = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-    await new Promise<void>((resolve, reject) => { map.once("load", () => resolve()); map.once("error", (event) => reject(event.error)); });
+    await new Promise<void>((resolve, reject) => { map.once("load", () => resolve()); map.once("error", (event: MapLibreErrorEvent) => reject(event.error)); });
     map.addSource(SOURCE, { type: "geojson", data: geojson(state), cluster: true, clusterRadius: 46, clusterMaxZoom: 15, generateId: false });
     map.addLayer({ id: CLUSTERS, type: "circle", source: SOURCE, filter: ["has", "point_count"], paint: { "circle-color": ["step", ["get", "point_count"], "#b58b34", 20, "#9a6d1f", 100, "#8b2635"], "circle-radius": ["step", ["get", "point_count"], 18, 20, 23, 100, 29], "circle-stroke-color": "#fffdf9", "circle-stroke-width": 2 } });
     map.addLayer({ id: COUNTS, type: "symbol", source: SOURCE, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": "#ffffff" } });
     map.addLayer({ id: POINTS, type: "circle", source: SOURCE, filter: ["!", ["has", "point_count"]], paint: { "circle-color": ["case", ["boolean", ["feature-state", "selected"], false], "#8b2635", "#b58b34"], "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 11, 8], "circle-stroke-color": "#fffdf9", "circle-stroke-width": 2 } });
-    map.on("click", CLUSTERS, async (event) => {
+    map.on("click", CLUSTERS, async (event: MapLayerMouseEvent) => {
       const feature = event.features?.[0];
       const clusterId = feature?.properties?.cluster_id as number | undefined;
       if (clusterId == null) return;
       const zoom = await (map.getSource(SOURCE) as GeoJSONSource).getClusterExpansionZoom(clusterId);
       map.easeTo({ center: (feature!.geometry as Point).coordinates as [number, number], zoom });
     });
-    map.on("click", POINTS, (event) => { const id = event.features?.[0]?.properties?.id as string | undefined; if (id) this.onSelect?.(id); });
+    map.on("click", POINTS, (event: MapLayerMouseEvent) => { const id = event.features?.[0]?.properties?.id as string | undefined; if (id) this.onSelect?.(id); });
     for (const layer of [CLUSTERS, POINTS]) {
       map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
@@ -87,9 +120,8 @@ export class MapLibreRenderer implements MapRenderer {
     if (id) this.map.setFeatureState({ source: SOURCE, id }, { selected: true });
   }
 
-  fitAll() {
-    const bounds = calculateBounds(this.state?.points ?? []);
-    if (!this.map || !bounds) return;
+  fitBounds(bounds: [number, number, number, number]) {
+    if (!this.map) return;
     if (bounds[0] === bounds[2] && bounds[1] === bounds[3]) this.map.easeTo({ center: [bounds[0], bounds[1]], zoom: 16 });
     else this.map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, maxZoom: 16 });
   }

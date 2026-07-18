@@ -1,33 +1,4 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Free Maps — hot-pluggable MapLibre explorer components and Cloudflare PMTiles helpers." />
-    <title>Free Maps</title>
-    <script type="module" src="/main.ts"></script>
-  </head>
-  <body>
-    <header class="site-header">
-      <a class="brand" href="/?view=full">Free <span>Maps</span></a>
-      <nav aria-label="Demo pages">
-        <a href="/?view=full">Explorer</a><a href="/?view=compact">Embed</a><a href="/?view=states">States</a><a href="/?view=vanilla">Vanilla</a><a href="/?view=react">React</a><a href="/?view=stress">5k stress</a>
-      </nav>
-    </header>
-    <main id="app"></main>
-    <footer>
-      <div class="footer-inner">
-        <h2>Under the hood</h2>
-        <ul>
-          <li>Map data: © OpenStreetMap contributors</li>
-          <li>Basemap schema/style/assets: Protomaps</li>
-          <li>Tile archive: PMTiles containing vector MVT tiles</li>
-          <li>Browser renderer: MapLibre GL JS</li>
-          <li>Hosting: Cloudflare Worker + R2 range reads</li>
-          <li>Demo markers: synthetic GeoJSON data clustered by MapLibre</li>
-        </ul>
-        <p>No Google Maps components or requests are involved.</p>
-      </div>
-    </footer>
-  </body>
-</html>
+<!doctype html><html lang="en" data-entry="explorer"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Free Maps explorer — own your map stack</title><meta name="description" content="Explore a progressively enhanced, framework-neutral map powered by MapLibre GL JS, Protomaps and protected PMTiles."><link rel="canonical" href="https://free-maps.forkandflag.com/"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/site.css"></head><body>
+<header class="site-header"><a class="brand" href="/">Free <span>Maps</span></a><nav aria-label="Demo pages"><a aria-current="page" href="/">Explorer</a><a href="/embed/">Embed</a><a href="/states/">States</a><a href="/vanilla/">Vanilla</a><a href="/react/">React</a><a href="/stress/">5k stress</a></nav></header>
+<main><section class="intro"><p class="eyebrow">Free Maps v0.2.0</p><h1>A map explorer you can own</h1><p>Framework-neutral elements, explicit renderer wiring, same-origin protected PMTiles, and deterministic synthetic Melbourne data.</p></section><free-map-explorer src="/api/v1/demo-dataset?size=250" activation="visible"><div class="static-map-reserve" aria-hidden="true"></div></free-map-explorer></main>
+<footer><div class="footer-inner"><h2>Under the hood</h2><ul><li>Map data: <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a></li><li>Basemap schema/style/assets: <a href="https://protomaps.com">Protomaps</a></li><li>Tile archive: <a href="https://docs.protomaps.com/pmtiles/">PMTiles</a> containing vector MVT tiles</li><li>Browser renderer: <a href="https://maplibre.org/maplibre-gl-js/docs/">MapLibre GL JS</a></li><li>Hosting: <a href="https://developers.cloudflare.com/workers/static-assets/">Cloudflare Worker</a> + R2 range reads</li><li>Demo markers: synthetic GeoJSON data clustered by MapLibre</li></ul><p>No Google Maps components or requests are involved.</p></div></footer><script type="module" src="/boot.ts"></script></body></html>
