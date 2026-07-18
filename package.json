@@ -1,0 +1,91 @@
+{
+  "name": "free-maps",
+  "version": "0.1.0",
+  "description": "Framework-neutral MapLibre explorer components with Cloudflare PMTiles helpers",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jacob Roth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jroth1111/free-maps.git"
+  },
+  "homepage": "https://free-maps.forkandflag.com",
+  "bugs": "https://github.com/jroth1111/free-maps/issues",
+  "keywords": ["maplibre", "pmtiles", "protomaps", "openstreetmap", "web-component", "cloudflare"],
+  "sideEffects": ["**/*.css", "./src/element/index.ts", "./dist/element.js"],
+  "files": ["dist", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "exports": {
+    "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js" },
+    "./element": { "types": "./dist/element.d.ts", "import": "./dist/element.js" },
+    "./maplibre": { "types": "./dist/maplibre.d.ts", "import": "./dist/maplibre.js" },
+    "./react": { "types": "./dist/react.d.ts", "import": "./dist/react.js" },
+    "./cloudflare": { "types": "./dist/cloudflare.d.ts", "import": "./dist/cloudflare.js" },
+    "./fonts.css": "./dist/fonts.css",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "dependencies": {
+    "@protomaps/basemaps": "^5.6.0",
+    "lit": "^3.3.1",
+    "maplibre-gl": "^5.7.1",
+    "pmtiles": "^4.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@cloudflare/vitest-pool-workers": "^0.18.6",
+    "@cloudflare/workers-types": "^5.20260718.1",
+    "@fontsource-variable/hanken-grotesk": "^5.2.8",
+    "@fontsource-variable/literata": "^5.2.8",
+    "@playwright/test": "^1.55.0",
+    "@testing-library/dom": "^10.4.1",
+    "@types/node": "^22.17.0",
+    "@types/geojson": "^7946.0.16",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.34.0",
+    "eslint-plugin-lit": "^2.1.1",
+    "jsdom": "^26.1.0",
+    "license-checker-rseidelsohn": "^4.4.2",
+    "node-addon-api": "^8.5.0",
+    "node-gyp": "^11.4.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tsx": "^4.20.5",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.64.0",
+    "vite": "^7.1.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.112.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "npm run clean && tsup && node scripts/copy-package-assets.mjs && vite build",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --config vitest.config.ts",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "test:e2e": "playwright test",
+    "test:all": "npm run lint && npm run typecheck && npm run test && npm run test:worker && npm run build && npm run package:verify",
+    "package:pack": "npm pack --pack-destination artifacts",
+    "package:verify": "node scripts/verify-package.mjs",
+    "check:forbidden": "node scripts/check-forbidden.mjs",
+    "check:budgets": "node scripts/check-budgets.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:licenses": "license-checker-rseidelsohn --production --summary",
+    "check:dependencies": "npm audit --omit=dev --audit-level=high",
+    "assets:sync": "node scripts/sync-map-assets.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "cf:types": "wrangler types",
+    "basemap:extract": "node scripts/extract-basemap.mjs",
+    "basemap:verify": "node scripts/verify-basemap.mjs",
+    "basemap:upload": "npx wrangler r2 object put free-maps-basemap/basemaps/greater-melbourne-20260717.pmtiles --file=basemap/greater-melbourne-20260717.pmtiles --content-type=application/vnd.pmtiles --cache-control='public, max-age=31536000, immutable' --remote"
+  }
+}

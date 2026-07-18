@@ -1,0 +1,26 @@
+@import "../src/element/fonts.css";
+
+:root { font-family: "Hanken Grotesk", system-ui, sans-serif; color: #22201e; background: #f8f5ef; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+.site-header { align-items: center; background: #fffdf9; border-bottom: 1px solid #d9d1c4; display: flex; gap: 2rem; justify-content: space-between; padding: 1rem clamp(1rem, 4vw, 4rem); position: sticky; top: 0; z-index: 10; }
+.brand { color: #22201e; font-family: "Literata", Georgia, serif; font-size: 1.4rem; font-weight: 720; text-decoration: none; white-space: nowrap; }
+.brand span, .eyebrow { color: #8b2635; }
+nav { display: flex; gap: 1rem; overflow-x: auto; }
+nav a { color: #665f57; font-size: .875rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+nav a:hover { color: #8b2635; }
+main { margin: 0 auto; max-width: 1440px; padding: clamp(1.25rem, 4vw, 4rem); }
+.intro { max-width: 780px; margin-bottom: 2rem; }
+.intro h1 { font-family: "Literata", Georgia, serif; font-size: clamp(2.1rem, 5vw, 4.8rem); letter-spacing: -.045em; line-height: .98; margin: .25rem 0 1rem; }
+.intro p:last-child { color: #665f57; font-size: 1.1rem; max-width: 65ch; }
+.eyebrow { font-size: .78rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.demo-grid, .state-grid { display: grid; gap: 2rem; }
+.demo-grid article, .state-grid article { min-width: 0; }
+article h2 { font-family: "Literata", Georgia, serif; }
+.state-grid free-map-explorer { max-height: 30rem; overflow: auto; }
+.night free-map-explorer { --free-map-paper: #1c2328; --free-map-surface: #202a31; --free-map-surface-low: #172027; --free-map-border: #43515b; --free-map-text: #f6f1e8; --free-map-muted: #c1c7ca; --free-map-accent: #e88da0; --free-map-gold: #e2ba5f; }
+pre { background: #202a31; color: #f6f1e8; overflow: auto; padding: 1rem; }
+.diagnostics { background: #fffdf9; border: 1px solid #d9d1c4; font-variant-numeric: tabular-nums; margin-bottom: 1rem; padding: .75rem 1rem; }
+footer { border-top: 1px solid #d9d1c4; color: #665f57; font-size: .8rem; padding: 2rem clamp(1rem, 4vw, 4rem); text-align: center; }
+@media (min-width: 900px) { .demo-grid { grid-template-columns: 1fr 1fr; } .state-grid { grid-template-columns: 1fr 1fr; } .state-grid article:last-child { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .site-header { align-items: start; flex-direction: column; gap: .6rem; } nav { max-width: 100%; width: 100%; } main { padding-top: 2rem; } }
