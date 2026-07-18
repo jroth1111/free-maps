@@ -104,7 +104,11 @@ async function render() {
         started = performance.now();
       });
     });
-    explorer.addEventListener("free-map-ready", () => explorer.dispatchEvent(new Event("free-map-filter-change", { bubbles: true })));
+    explorer.addEventListener("free-map-ready", () => {
+      const mounted = explorer.shadowRoot?.querySelectorAll(".row").length ?? 0;
+      diagnostics.textContent = `5,000 matches · ${mounted} mounted rows · ready`;
+      started = performance.now();
+    });
     document.querySelector("#stress-map")!.append(explorer);
     return;
   }

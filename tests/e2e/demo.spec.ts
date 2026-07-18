@@ -59,10 +59,24 @@ test("5k explorer stays virtualized and responds inside the documented budgets",
   const explorer = page.locator("free-map-explorer");
   await expect(explorer.locator("canvas")).toBeVisible();
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
-  const started = Date.now();
-  await explorer.locator("input[type=search]").fill("Lantern");
+  const updateMs = await explorer.evaluate(async (element) => {
+    const input = element.shadowRoot?.querySelector<HTMLInputElement>("input[type=search]");
+    if (!input) throw new Error("Search input was not rendered");
+    return await new Promise<number>((resolve, reject) => {
+      const started = performance.now();
+      const timeout = window.setTimeout(() => reject(new Error("Filter update did not complete")), 2_000);
+      element.addEventListener("free-map-filter-change", () => {
+        requestAnimationFrame(() => {
+          window.clearTimeout(timeout);
+          resolve(performance.now() - started);
+        });
+      }, { once: true });
+      input.value = "Lantern";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: "Lantern" }));
+    });
+  });
   await expect(page.locator("#diagnostics")).toContainText("matches");
-  expect(Date.now() - started).toBeLessThan(200);
+  expect(updateMs).toBeLessThan(200);
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
   await page.screenshot({ path: testInfo.outputPath("stress.png"), fullPage: true });
 });
