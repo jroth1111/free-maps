@@ -5,6 +5,10 @@ import * as chromeLauncher from "chrome-launcher";
 
 const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? process.env.LIVE_BASE_URL;
 if (!baseUrl) throw new Error("Set LIGHTHOUSE_BASE_URL to the deployed origin");
+const workerVersionOverrideId = process.env.WORKER_VERSION_OVERRIDE_ID;
+const extraHeaders = workerVersionOverrideId
+  ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"` }
+  : undefined;
 const chromePath = process.env.CHROME_PATH;
 if (!chromePath) throw new Error("Set CHROME_PATH to Chrome for Testing 151.0.7922.34");
 const routes = (process.env.LIGHTHOUSE_ROUTES ?? "/,/embed/,/states/,/vanilla/,/react/").split(",");
@@ -22,7 +26,7 @@ const selectedProfiles = (process.env.LIGHTHOUSE_PROFILES ?? Object.keys(profile
 const categories = ["performance", "accessibility", "best-practices", "seo", "agentic-browsing"];
 const rows = [];
 
-const flagsFor = (port, settings, output, disableStorageReset = false) => ({ port, output, logLevel: "error", onlyCategories: categories, throttlingMethod: "simulate", disableStorageReset, ...settings });
+const flagsFor = (port, settings, output, disableStorageReset = false) => ({ port, output, logLevel: "error", onlyCategories: categories, throttlingMethod: "simulate", disableStorageReset, extraHeaders, ...settings });
 
 for (const mode of modes) for (const route of routes) for (const profile of selectedProfiles) for (let run = 1; run <= runs; run++) {
   if (mode !== "cold" && mode !== "warm") throw new Error(`Unknown Lighthouse mode ${mode}`);
@@ -73,7 +77,7 @@ for (const [mode, matrix] of Object.entries(matrices)) for (const row of matrix)
   else for (const id of categories) if (row.medians[id] < accepted.medians[id]) failures.push(`${mode} ${row.route} ${row.profile}: ${id} regressed below accepted v0.2 median`);
 }
 
-const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
+const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
 if (rows.length !== result.expectedReports) failures.push(`Expected ${result.expectedReports} measured reports, received ${rows.length}`);
 writeFileSync(resolve(outputDir, "score-matrix.json"), `${JSON.stringify(result, null, 2)}\n`);
 for (const [mode, matrix] of Object.entries(matrices)) {

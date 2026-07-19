@@ -7,6 +7,26 @@ on:
         description: Deployed origin to audit
         required: true
         default: https://free-maps.forkandflag.com
+      worker_version_override_id:
+        description: Optional 0%-traffic Worker version to audit through the production hostname
+        required: false
+        default: ""
+      routes:
+        description: Comma-separated routes
+        required: true
+        default: /,/embed/,/states/,/vanilla/,/react/
+      profiles:
+        description: Comma-separated profiles
+        required: true
+        default: mobile,ipad,desktop
+      modes:
+        description: Comma-separated cold and warm modes
+        required: true
+        default: cold,warm
+      runs:
+        description: Runs per route/profile/mode
+        required: true
+        default: "3"
 
 permissions:
   contents: read
@@ -30,9 +50,14 @@ jobs:
         run: npx @puppeteer/browsers install chrome@151.0.7922.34 --path .cache/chrome
       - name: Resolve Chrome path
         run: echo "CHROME_PATH=$(find .cache/chrome -type f -name chrome -print -quit)" >> "$GITHUB_ENV"
-      - name: Run serial 90-report cold and warm matrices
+      - name: Run serial Lighthouse matrix
         env:
           LIGHTHOUSE_BASE_URL: ${{ inputs.base_url }}
+          WORKER_VERSION_OVERRIDE_ID: ${{ inputs.worker_version_override_id }}
+          LIGHTHOUSE_ROUTES: ${{ inputs.routes }}
+          LIGHTHOUSE_PROFILES: ${{ inputs.profiles }}
+          LIGHTHOUSE_MODES: ${{ inputs.modes }}
+          LIGHTHOUSE_RUNS: ${{ inputs.runs }}
         run: npm run lighthouse:matrix
       - uses: actions/upload-artifact@v4
         if: always()
