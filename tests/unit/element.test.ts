@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { defineFreeMapElements, type FreeMapExplorerElement } from "../../src/element";
 import type { FreeMapDataset, MapRenderer, MapRendererState } from "../../src/core";
-import { dataset } from "./core.test";
+import { dataset } from "./fixtures";
 import { SerialMountScheduler } from "../../src/element/scheduler";
 
 class FakeRenderer implements MapRenderer {
