@@ -151,21 +151,21 @@ An injected `cache` is optional. Internal keys include namespace, cache version,
 
 The static MPA routes are `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, and `/stress/`. The explorer preserves `q`, `category`, `sort`, and `point`; unknown routes use a real `404.html`. React loads only on `/react/`.
 
-MapLibre is not requested before stable paint and activation eligibility. Compatible maps share style and expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
+The demo does not request MapLibre. It loads the vector renderer only after stable paint and activation eligibility. Compatible maps share expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
 
 ### Current Lighthouse results
 
-The most recent complete local diagnostic matrix (2026-07-19) contains 90 Lighthouse 13.4.0 reports: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **96 to 100**, the lowest individual run is **95**, and **27 of 30** route/profile/cache rows meet the ≥98 median floor. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in every row**.
+The most recent pinned Ubuntu acceptance matrix (2026-07-19) uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **98 to 100**, the lowest individual run is **96**, and **all 30** route/profile/cache rows meet the ≥98 median floor. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in every row**.
 
 | Route | Cold Performance medians | Warm Performance medians |
 | --- | --- | --- |
-| `/` | 98–100 | 98–99 |
-| `/embed/` | 97–100 | 96–99 |
-| `/states/` | 99–100 | 100 |
-| `/vanilla/` | 98–100 | 99 |
-| `/react/` | 98–100 | 98–99 |
+| `/` | 98–100 | 99–100 |
+| `/embed/` | 98–100 | 98–100 |
+| `/states/` | 98–100 | 99–100 |
+| `/vanilla/` | 98–100 | 99–100 |
+| `/react/` | 98–100 | 99–100 |
 
-These local results are diagnostic, not release acceptance. The latest pinned `ubuntu-24.04` release canary scored **65–66 median Performance on automatic real-map routes** and **96 on `/states/`**, with all non-performance categories at 100. v0.3.0 therefore remains an unreleased candidate and production remains on v0.2.0. See [the full candidate evidence](docs/RELEASE_NOTES_v0.3.0.md).
+Mobile and iPad medians are **100 on every route in both cache modes**. Cold desktop medians are 98; warm desktop medians are 98–99. The remaining desktop variance comes from Lighthouse's simulated paint model despite observed paint near 90 ms and 0–9 ms blocking time on the affected cold runs. Production remains on v0.2.0 until the reviewed candidate is promoted. See [the full candidate evidence](docs/RELEASE_NOTES_v0.3.0.md).
 
 See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/UI_VERIFICATION.md](docs/UI_VERIFICATION.md).
 
