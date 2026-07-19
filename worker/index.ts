@@ -45,8 +45,13 @@ const allowedTileOrigin = (request: Request, env: Env) => {
   const supplied = request.headers.get("origin");
   if (supplied) return allowedOrigin(request, env);
   const requestUrl = new URL(request.url);
+  const productionHost = new URL(env.PRODUCTION_ORIGIN).hostname;
+  // Cloudflare may expose run_worker_first requests to the isolate as HTTP.
+  // The hostname is authoritative here; the signed session remains bound to
+  // the configured public HTTPS production origin.
+  if (requestUrl.hostname === productionHost) return env.PRODUCTION_ORIGIN;
   const requestOrigin = publicRequestOrigin(request);
-  return requestOrigin === env.PRODUCTION_ORIGIN || requestUrl.hostname !== new URL(env.PRODUCTION_ORIGIN).hostname ? requestOrigin : null;
+  return requestOrigin;
 };
 const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", "), "Cache-Control": "no-store" } });
 

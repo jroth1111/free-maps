@@ -88,6 +88,18 @@ describe("Worker endpoints", () => {
     await waitOnExecutionContext(context);
   });
 
+  it("binds an internal HTTP tile request to the configured HTTPS production origin", async () => {
+    await env.BASEMAP.put("basemaps/greater-melbourne-20260717.pmtiles", fixture);
+    const context = createExecutionContext();
+    const productionOrigin = "https://free-maps.forkandflag.com";
+    const sessionResponse = await worker.fetch(new Request(`${productionOrigin}/api/tile-session`, { method: "POST", headers: { origin: productionOrigin } }), env as unknown as Env, context);
+    const { token } = await sessionResponse.json() as { token: string };
+    const tileJson = await worker.fetch(new Request("http://free-maps.forkandflag.com/tiles/melbourne.json", { headers: { authorization: `Bearer ${token}` } }), env as unknown as Env, context);
+    expect(tileJson.status).toBe(200);
+    expect(tileJson.headers.get("access-control-allow-origin")).toBe(productionOrigin);
+    await waitOnExecutionContext(context);
+  });
+
   it("uses a normalized cache key and performs no R2 reads after a tile cache hit", async () => {
     let reads = 0;
     const bucket: R2BucketLike = {
