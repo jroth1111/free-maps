@@ -107,6 +107,8 @@ export const structuralStyles = css`
   @media (min-width: 760px) {
     .layout { display: grid; grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr); }
     .map { grid-column: 2; position: relative; }
+    .loading-layout, :host([compact]) .layout { grid-template-columns: minmax(0, 1fr); }
+    .loading-layout .map, :host([compact]) .map { grid-column: 1; }
     .panel { box-shadow: none; border-right: 1px solid var(--free-map-border-color); grid-column: 1; grid-row: 1; inset: auto; min-width: 0; position: relative; transform: none !important; transition: width .18s ease; will-change: auto; }
     .sheet-handle { display: none; }
     .rail-toggle { align-items: center; background: var(--free-map-surface-elevated); border: 1px solid var(--free-map-border-color); border-radius: var(--free-map-radius-pill); cursor: pointer; display: flex; font-size: 1.25rem; height: 36px; justify-content: center; position: absolute; right: -18px; top: 12px; width: 36px; z-index: 5; }

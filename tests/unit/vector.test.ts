@@ -52,7 +52,7 @@ describe("vector canvas renderer", () => {
       return new Response(new Uint8Array(), { status: 200, headers: { "content-type": "application/vnd.mapbox-vector-tile" } });
     }));
     const renderer = new VectorCanvasRenderer({ tileJsonUrl: "/tiles/map.json", basemapStyle: neutralLightBasemap, tileSession: { endpoint: "/api/tile-session", protectedUrlPrefix: "/tiles/" }, tileHeaders: { "x-client": "test" } });
-    const container = document.createElement("div"); document.body.append(container);
+    const container = document.createElement("div"); container.style.position = "absolute"; document.body.append(container);
     const viewports: Array<{ cause: string }> = [];
     await renderer.mount(container, state, vi.fn(), { onViewportChange: (detail) => viewports.push(detail) });
     const canvas = container.querySelector("canvas")!;
@@ -69,6 +69,7 @@ describe("vector canvas renderer", () => {
     const count = viewports.length;
     renderer.destroy();
     expect(container.querySelector("canvas")).toBeNull();
+    expect(container.style.position).toBe("absolute");
     zoomButton.click(); expect(viewports).toHaveLength(count);
   });
 
@@ -83,7 +84,8 @@ describe("vector canvas renderer", () => {
     }));
     const renderer = new VectorCanvasRenderer({ tileJsonUrl: "/tiles/map.json", basemapStyle: neutralLightBasemap });
     const container = document.createElement("div"); document.body.append(container);
-    const mounted = renderer.mount(container, state, vi.fn());
+    const viewports: Array<{ cause: string }> = [];
+    const mounted = renderer.mount(container, state, vi.fn(), { onViewportChange: (detail) => viewports.push(detail) });
     await vi.waitFor(() => expect(frames.size).toBeGreaterThan(0));
     for (const [id, callback] of [...frames]) { frames.delete(id); callback(performance.now()); }
     await mounted;
@@ -94,6 +96,15 @@ describe("vector canvas renderer", () => {
       Object.defineProperty(event, "pointerId", { value: 1 });
       return event;
     };
+    canvas.dispatchEvent(pointer("pointerdown", 10, 10));
+    canvas.dispatchEvent(pointer("pointerup", 10, 10));
+    expect(viewports).toHaveLength(0);
+    canvas.dispatchEvent(pointer("pointerdown", 10, 10));
+    canvas.dispatchEvent(pointer("pointermove", 40, 40));
+    expect(frames.size).toBe(1);
+    canvas.dispatchEvent(pointer("pointercancel", 40, 40));
+    expect(frames.size).toBe(0);
+    expect(viewports).toHaveLength(0);
     const before = context.fillRect.mock.calls.length;
     canvas.dispatchEvent(pointer("pointerdown", 10, 10));
     canvas.dispatchEvent(pointer("pointermove", 40, 40));
@@ -101,10 +112,12 @@ describe("vector canvas renderer", () => {
     expect(context.fillRect.mock.calls.length).toBe(before);
     expect(frames.size).toBe(1);
     canvas.dispatchEvent(pointer("pointerup", 60, 60));
+    expect(viewports).toEqual([expect.objectContaining({ cause: "user" })]);
     const zoom = canvas.dataset.zoom;
     canvas.dispatchEvent(new MouseEvent("click", { clientX: 60, clientY: 60, bubbles: true }));
     expect(canvas.dataset.zoom).toBe(zoom);
     renderer.destroy();
+    expect(container.style.position).toBe("");
     expect(frames.size).toBe(0);
   });
 });

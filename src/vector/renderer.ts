@@ -136,6 +136,7 @@ export class VectorCanvasRenderer implements MapRenderer {
   private tileJsonPromise?: Promise<TileJsonResult>;
   private listeners: Array<() => void> = [];
   private onViewportChange?: MapRendererMountOptions["onViewportChange"];
+  private restoreContainerPosition?: () => void;
 
   constructor(private options: VectorCanvasRendererOptions) {
     if (!options.tileJsonUrl) throw new Error("VectorCanvasRendererOptions.tileJsonUrl is required");
@@ -206,6 +207,8 @@ export class VectorCanvasRenderer implements MapRenderer {
     this.resize?.disconnect();
     for (const remove of this.listeners) remove();
     this.listeners = [];
+    this.restoreContainerPosition?.();
+    this.restoreContainerPosition = undefined;
     this.canvas?.remove();
     this.controls?.remove();
     this.attribution?.remove();
@@ -225,7 +228,12 @@ export class VectorCanvasRenderer implements MapRenderer {
   }
 
   private installChrome(container: HTMLElement): void {
-    container.style.position = "relative";
+    const position = getComputedStyle(container).position;
+    if (!position || position === "static") {
+      const previous = container.style.position;
+      container.style.position = "relative";
+      this.restoreContainerPosition = () => { if (previous) container.style.position = previous; else container.style.removeProperty("position"); };
+    }
     const controls = document.createElement("div");
     controls.setAttribute("part", "map-controls");
     Object.assign(controls.style, { bottom: "10px", display: "grid", position: "absolute", right: "10px", zIndex: "2" });
@@ -266,11 +274,18 @@ export class VectorCanvasRenderer implements MapRenderer {
     });
     const finishDrag = (cancelled = false) => {
       if (!this.dragging) return;
-      this.paintPan();
-      this.suppressNextClick = !cancelled && this.dragging.moved;
+      const drag = this.dragging;
+      const moved = drag.moved;
+      if (this.panFrame !== null && this.panFrame >= 0) cancelAnimationFrame(this.panFrame);
+      this.panFrame = null;
+      if (!cancelled && moved) this.paintPan();
+      else if (cancelled && moved) {
+        this.center = { lng: worldToLng(drag.centerX, this.zoom), lat: worldToLat(drag.centerY, this.zoom) };
+        this.draw();
+      }
+      this.suppressNextClick = !cancelled && moved;
       this.dragging = undefined;
-      this.requestVisibleTiles();
-      this.emitViewport("user");
+      if (!cancelled && moved) { this.requestVisibleTiles(); this.emitViewport("user"); }
     };
     on("pointerup", () => finishDrag()); on("pointercancel", () => finishDrag(true));
     on("wheel", (event) => { event.preventDefault(); this.changeZoom(event.deltaY < 0 ? 1 : -1, "user"); }, { passive: false });

@@ -27,7 +27,8 @@ const ROW_HEIGHT = 88;
 const OVERSCAN = 6;
 type SheetSnap = "collapsed" | "half" | "expanded";
 const SNAP_ORDER: SheetSnap[] = ["collapsed", "half", "expanded"];
-const isMobile = (): boolean => typeof matchMedia === "function" && matchMedia("(max-width: 759px)").matches;
+const MOBILE_MEDIA = "(max-width: 759px)";
+const isMobile = (): boolean => typeof matchMedia === "function" && matchMedia(MOBILE_MEDIA).matches;
 
 export class FreeMapExplorerElement extends LitElement {
   static styles = structuralStyles;
@@ -43,6 +44,8 @@ export class FreeMapExplorerElement extends LitElement {
   private gestureY = 0;
   private suppressSheetClick = false;
   private removeGestureListeners?: () => void;
+  private mobileMedia?: MediaQueryList;
+  private removeMobileMediaListener?: () => void;
 
   @property({ attribute: false }) get data(): FreeMapDataset | null { return this._data; }
   set data(value: FreeMapDataset | null) { const old = this._data; this._data = value; this.runtime.setData(value); this.requestUpdate("data", old); }
@@ -69,12 +72,31 @@ export class FreeMapExplorerElement extends LitElement {
   @queryElement(".panel") private panelHost?: HTMLElement;
   @queryElement(".sheet-handle") private sheetHandle?: HTMLButtonElement;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (typeof matchMedia !== "function") return;
+    const media = matchMedia(MOBILE_MEDIA);
+    const changed = () => this.requestUpdate();
+    this.mobileMedia = media;
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", changed);
+      this.removeMobileMediaListener = () => media.removeEventListener("change", changed);
+    } else if (typeof media.addListener === "function") {
+      media.addListener(changed);
+      this.removeMobileMediaListener = () => media.removeListener(changed);
+    }
+  }
+
   disconnectedCallback(): void {
     this.cancelSheetGesture();
+    this.removeMobileMediaListener?.();
+    this.removeMobileMediaListener = undefined;
+    this.mobileMedia = undefined;
     super.disconnectedCallback();
   }
 
   private get datasetValue(): FreeMapDataset | null { return this.runtime.dataset; }
+  private get mobileLayoutActive(): boolean { return this.mobileMedia?.matches ?? isMobile(); }
   private get effectiveLabels() { return { ...labels, ...this.options.labels }; }
   private get quickFilters(): FreeMapQuickFilter[] {
     const source = this.options.quickFilters;
@@ -123,7 +145,7 @@ export class FreeMapExplorerElement extends LitElement {
     if (next === this.selectedId) return;
     this.selectedId = next;
     this.searchAreaViewport = null;
-    if (next && this.layout === "responsive" && isMobile()) this.sheetSnap = "expanded";
+    if (next && this.layout === "responsive" && this.mobileLayoutActive) this.sheetSnap = "expanded";
     this.dispatchEvent(new CustomEvent("free-map-select", { bubbles: true, composed: true, detail: { id: next, point: dataset?.points.find((point) => point.id === next) ?? null } }));
   }
   runtimeViewport(detail: MapViewportDetail): void {
@@ -169,7 +191,7 @@ export class FreeMapExplorerElement extends LitElement {
     else if (event.key === "End") { event.preventDefault(); this.setSheetSnap("expanded"); }
   }
   private onPanelKeydown(event: KeyboardEvent): void {
-    if (event.key !== "Tab" || this.sheetSnap !== "expanded" || !isMobile() || !this.panelHost) return;
+    if (event.key !== "Tab" || this.sheetSnap !== "expanded" || !this.mobileLayoutActive || !this.panelHost) return;
     const focusable = [...this.panelHost.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]')].filter((node) => node.offsetParent !== null);
     const first = focusable[0]; const last = focusable.at(-1);
     if (!first || !last) return;
@@ -177,7 +199,7 @@ export class FreeMapExplorerElement extends LitElement {
     else if (!event.shiftKey && this.shadowRoot?.activeElement === last) { event.preventDefault(); first.focus(); }
   }
   private onSheetPointerDown(event: PointerEvent): void {
-    if (this.layout !== "responsive" || !isMobile() || !this.panelHost) return;
+    if (this.layout !== "responsive" || !this.mobileLayoutActive || !this.panelHost) return;
     const height = this.panelHost.getBoundingClientRect().height;
     const offsets: Record<SheetSnap, number> = { expanded: 0, half: height * .45, collapsed: Math.max(0, height - 72) };
     this.gesture = { pointerId: event.pointerId, startY: event.clientY, startOffset: offsets[this.sheetSnap], height };
@@ -202,6 +224,7 @@ export class FreeMapExplorerElement extends LitElement {
     if (this.gestureFrame) cancelAnimationFrame(this.gestureFrame);
     this.gestureFrame = 0;
     this.gesture = undefined;
+    this.panelHost?.style.removeProperty("transform");
     this.removeGestureListeners?.();
     this.removeGestureListeners = undefined;
   }
@@ -226,11 +249,11 @@ export class FreeMapExplorerElement extends LitElement {
   render() {
     if (this.runtime.phase === "error") return html`<div class="error" part="errors" role="alert"><h2>${this.effectiveLabels.mapUnavailable}</h2><p>${this.runtime.failure?.message}</p>${this.runtime.failure?.retryable ? html`<button type="button" @click=${() => this.reload()}>${this.effectiveLabels.retry}</button>` : nothing}</div>`;
     const dataset = this.datasetValue;
-    if (!dataset || this.runtime.phase === "loading") return html`<div class="shell" part="shell" aria-busy="true"><div class="map" part="map"><div class="map-state" part="status" role="status">Loading map…</div></div></div>`;
+    if (!dataset || this.runtime.phase === "loading") return html`<div class="shell" part="shell" aria-busy="true"><div class="layout loading-layout"><div class="map" part="map"><div class="map-state" part="status" role="status">Loading map…</div></div></div></div>`;
     const rows = this.filtered;
     const selected = dataset.points.find((point) => point.id === this.selectedId);
     const mapped = this.renderable(rows, dataset);
-    const bodyInert = this.layout === "responsive" && this.sheetSnap === "collapsed";
+    const bodyInert = this.layout === "responsive" && this.mobileLayoutActive && this.sheetSnap === "collapsed";
     return html`
       <div class="shell" part="shell">
         ${this.hintVisible && !this.compact ? html`<div class="tip" part="status" role="status"><span><strong>Interactive map</strong> — Pan, zoom, or choose a place. List and pins stay in sync.</span><button type="button" aria-label="Dismiss map tips" @click=${() => { this.hintVisible = false; }}>×</button></div>` : nothing}

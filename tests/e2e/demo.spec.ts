@@ -70,7 +70,12 @@ for (const route of ["/embed/", "/vanilla/", "/react/"]) {
       await expect.poll(tileJsonRequests).toBeGreaterThanOrEqual(1);
       const surface = page.locator("free-map-surface");
       await surface.scrollIntoViewIfNeeded();
-      await expect(surface.locator("canvas")).toBeVisible({ timeout: 30_000 });
+      const surfaceCanvas = surface.locator("canvas");
+      await expect(surfaceCanvas).toBeVisible({ timeout: 30_000 });
+      const [surfaceBox, canvasBox] = await Promise.all([surface.boundingBox(), surfaceCanvas.boundingBox()]);
+      expect(surfaceBox && canvasBox).toBeTruthy();
+      expect(Math.abs(surfaceBox!.width - canvasBox!.width)).toBeLessThanOrEqual(2);
+      expect(Math.abs(surfaceBox!.height - canvasBox!.height)).toBeLessThanOrEqual(2);
       await expect.poll(tileJsonRequests).toBe(2);
     }
   });
@@ -137,6 +142,7 @@ test("responsive rail or sheet, quick filters, URL restoration, and search-area 
     const box = await handle.boundingBox(); expect(box).toBeTruthy(); await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.mouse.down(); await page.mouse.move(box!.x + box!.width / 2, box!.y + 240, { steps: 4 }); await page.mouse.up(); await expect(panel).toHaveAttribute("data-snap", "collapsed");
     await handle.focus(); await page.keyboard.press("Home"); await expect(panel).toHaveAttribute("data-snap", "collapsed");
     await page.keyboard.press("End"); await expect(panel).toHaveAttribute("data-snap", "expanded");
+    await page.keyboard.press("Home"); await expect(panel).toHaveAttribute("data-snap", "collapsed");
   } else {
     const panel = explorer.locator('[part~="rail"]'); const toggle = explorer.locator('[part~="rail-toggle"]');
     await expect(toggle).toBeVisible(); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "true"); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "false");
@@ -145,6 +151,10 @@ test("responsive rail or sheet, quick filters, URL restoration, and search-area 
   const searchEvent = explorer.evaluate((element) => new Promise((resolve) => element.addEventListener("free-map-search-area", (event) => resolve((event as CustomEvent).detail), { once: true })));
   await explorer.locator('[part~="search-area-button"]').click(); await expect(searchEvent).resolves.toEqual(expect.objectContaining({ cause: "user", bounds: expect.any(Array), center: expect.any(Object), zoom: expect.any(Number) }));
   await expect(explorer.locator('[part~="search-area-button"]')).toHaveCount(0);
+  if (testInfo.project.name === "mobile-412") {
+    const panel = explorer.locator('[part~="sheet"]'); const handle = explorer.locator('[part~="sheet-handle"]');
+    await handle.focus(); await page.keyboard.press("End"); await expect(panel).toHaveAttribute("data-snap", "expanded");
+  }
   await explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" }).click(); await expect(page).toHaveURL(/filter=open-now.*filter=top-rated/);
   await page.reload(); await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" })).toHaveAttribute("aria-pressed", "true");
 });

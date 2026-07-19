@@ -83,6 +83,7 @@ describe("element lifecycle", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
     const loading = elementWith(new FakeRenderer(), "manual"); loading.src = "/pending.json"; document.body.append(loading); await settle(loading);
     expect(loading.shadowRoot?.querySelector('[part~="status"]')).toBeTruthy();
+    expect(loading.shadowRoot?.querySelector(".layout > .map")).toBeTruthy();
 
     const invalid = elementWith(new FakeRenderer(), "manual"); invalid.data = { ...dataset, schemaVersion: 2 } as unknown as FreeMapDataset; document.body.append(invalid); await settle(invalid);
     expect(invalid.shadowRoot?.querySelector('[part~="errors"]')).toBeTruthy();
@@ -126,6 +127,58 @@ describe("element lifecycle", () => {
     expect(element.shadowRoot?.querySelector(".panel")?.getAttribute("data-snap")).toBe("half");
     handle!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })); await settle(element); expect(element.shadowRoot?.querySelector(".panel")?.getAttribute("data-snap")).toBe("collapsed");
     handle!.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })); await settle(element); expect(element.shadowRoot?.querySelector(".panel")?.getAttribute("data-snap")).toBe("expanded");
+  });
+
+  it("removes mobile inertness when the responsive layout crosses the desktop breakpoint", async () => {
+    let mobile = true;
+    const listeners = new Set<() => void>();
+    const media = {
+      get matches() { return mobile; },
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+    } as unknown as MediaQueryList;
+    vi.stubGlobal("matchMedia", vi.fn(() => media));
+    const element = elementWith(new FakeRenderer(), "manual"); element.data = dataset; document.body.append(element); await settle(element);
+    const handle = element.shadowRoot?.querySelector<HTMLButtonElement>('[part~="sheet-handle"]');
+    handle!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })); await settle(element);
+    expect(element.shadowRoot?.querySelector(".panel-body")?.hasAttribute("inert")).toBe(true);
+    mobile = false; for (const listener of listeners) listener(); await settle(element);
+    expect(element.shadowRoot?.querySelector(".panel-body")?.hasAttribute("inert")).toBe(false);
+    element.remove(); expect(listeners.size).toBe(0);
+  });
+
+  it("restores the snapped sheet transform when a pointer gesture is cancelled", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const frames = new Map<number, FrameRequestCallback>(); let nextFrame = 1;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => { const id = nextFrame++; frames.set(id, callback); return id; }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn((id: number) => frames.delete(id)));
+    const element = elementWith(new FakeRenderer(), "manual"); element.data = dataset; document.body.append(element); await settle(element);
+    const panel = element.shadowRoot?.querySelector<HTMLElement>(".panel");
+    const handle = element.shadowRoot?.querySelector<HTMLButtonElement>('[part~="sheet-handle"]');
+    expect(panel && handle).toBeTruthy();
+    vi.spyOn(panel!, "getBoundingClientRect").mockReturnValue({ bottom: 500, height: 400, left: 0, right: 400, top: 100, width: 400, x: 0, y: 100, toJSON: () => ({}) });
+    handle!.setPointerCapture = vi.fn();
+    const pointer = (type: string, y: number) => { const event = new Event(type, { bubbles: true }); Object.defineProperties(event, { clientY: { value: y }, pointerId: { value: 1 } }); return event; };
+    frames.clear();
+    handle!.dispatchEvent(pointer("pointerdown", 100));
+    window.dispatchEvent(pointer("pointermove", 180));
+    expect(frames.size).toBe(1);
+    window.dispatchEvent(pointer("pointercancel", 180));
+    expect(frames.size).toBe(0);
+    expect(panel!.style.transform).toBe("");
+    handle!.dispatchEvent(pointer("pointerdown", 100));
+    window.dispatchEvent(pointer("pointermove", 180));
+    for (const [id, callback] of [...frames]) { frames.delete(id); callback(performance.now()); }
+    expect(panel!.style.transform).toContain("translate3d");
+    window.dispatchEvent(pointer("pointercancel", 180));
+    expect(panel!.style.transform).toBe("");
+  });
+
+  it("keeps standalone surfaces inside the shared sized layout", async () => {
+    const surface = document.createElement("free-map-surface"); surface.activation = "manual"; surface.renderer = async () => new FakeRenderer(); surface.data = dataset;
+    document.body.append(surface); await surface.updateComplete;
+    expect(surface.compact).toBe(true);
+    expect(surface.shadowRoot?.querySelector(".layout > .map")).toBeTruthy();
   });
 
   it("holds the scheduler slot through completion and disposes queued work on abort", async () => {

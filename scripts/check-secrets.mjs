@@ -25,7 +25,7 @@ for (const file of tracked) {
   });
 }
 
-const allowedCommitEmail = /^(?:noreply@github\.com|noreply@anthropic\.com|\d+\+[A-Z0-9-]+@users\.noreply\.github\.com)$/i;
+const allowedCommitEmail = /^(?:noreply@github\.com|noreply@anthropic\.com|codex@openai\.com|\d+\+[A-Z0-9-]+@users\.noreply\.github\.com)$/i;
 const requestedHead = process.env.CHECK_SECRETS_HEAD ?? "HEAD";
 const parentLine = execFileSync("git", ["rev-list", "--parents", "-n", "1", requestedHead], { encoding: "utf8" }).trim().split(" ");
 // pull_request workflows check out a synthetic merge commit. Its author is

@@ -28,7 +28,7 @@ export class FreeMapSurfaceElement extends LitElement {
   runtimeSelect(id: string | null): void { const dataset = this.runtime.dataset; const next = id && dataset?.points.some((point) => point.id === id) ? id : null; this.selectedId = next; this.dispatchEvent(new CustomEvent("free-map-select", { bubbles: true, composed: true, detail: { id: next, point: dataset?.points.find((point) => point.id === next) ?? null } })); }
   runtimeViewport(_detail: MapViewportDetail): void {}
   protected updated(changed: PropertyValues<this>): void { if (changed.has("src")) this.runtime.setSrc(this.src); if (changed.has("activation")) this.runtime.activationChanged(); }
-  render() { if (this.runtime.phase === "error") return html`<div class="error" part="errors" role="alert"><h2>Map unavailable</h2><p>${this.runtime.failure?.message}</p></div>`; return html`<div class="shell" part="shell" aria-busy=${this.runtime.phase === "loading" ? "true" : "false"}><div class="map" part="map"><div class="map-host"></div><div class="map-state" part="status" ?hidden=${this.runtime.active}>Map loads when eligible.</div></div></div>`; }
+  render() { if (this.runtime.phase === "error") return html`<div class="error" part="errors" role="alert"><h2>Map unavailable</h2><p>${this.runtime.failure?.message}</p></div>`; return html`<div class="shell" part="shell" aria-busy=${this.runtime.phase === "loading" ? "true" : "false"}><div class="layout"><div class="map" part="map"><div class="map-host"></div><div class="map-state" part="status" ?hidden=${this.runtime.active}>Map loads when eligible.</div></div></div></div>`; }
 }
 
 declare global { interface HTMLElementTagNameMap { "free-map-surface": FreeMapSurfaceElement } }

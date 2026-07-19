@@ -1,3 +1,4 @@
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -33,5 +34,35 @@ describe("deployment routing", () => {
     expect(statesHtml).toContain('<link rel="stylesheet" href="/states.css">');
     expect(shared).not.toMatch(/themes\/.*\.css/);
     expect(states).not.toMatch(/themes\/.*\.css/);
+  });
+
+  it("accepts the Codex role identity for synthetic PR heads while rejecting personal commit email", () => {
+    const tree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+    const base = execFileSync("git", ["rev-parse", "origin/main"], { encoding: "utf8" }).trim();
+    const createCommit = (email: string) => execFileSync("git", ["commit-tree", tree, "-p", base], {
+      encoding: "utf8",
+      input: "identity fixture\n",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Automated fixture",
+        GIT_AUTHOR_EMAIL: email,
+        GIT_AUTHOR_DATE: "2026-01-01T00:00:00Z",
+        GIT_COMMITTER_NAME: "Automated fixture",
+        GIT_COMMITTER_EMAIL: email,
+        GIT_COMMITTER_DATE: "2026-01-01T00:00:00Z",
+      },
+    }).trim();
+    const run = (head: string) => spawnSync(process.execPath, [resolve("scripts/check-secrets.mjs")], {
+      encoding: "utf8",
+      env: { ...process.env, CHECK_SECRETS_HEAD: head, GITHUB_BASE_REF: "main", GITHUB_EVENT_NAME: "" },
+    });
+
+    const roleEmail = ["codex", "openai.com"].join("@");
+    const personalEmail = ["person", "example.test"].join("@");
+    expect(run(createCommit(roleEmail))).toMatchObject({ status: 0 });
+    const rejected = run(createCommit(personalEmail));
+    expect(rejected.status).toBe(1);
+    expect(rejected.stderr).toContain("author email is not a no-reply identity");
+    expect(rejected.stderr).toContain("committer email is not a no-reply identity");
   });
 });
