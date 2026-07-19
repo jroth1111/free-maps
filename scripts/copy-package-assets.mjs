@@ -8,10 +8,13 @@ const assets = [
   ["node_modules/@fontsource-variable/literata/files/literata-latin-wght-normal.woff2", "literata-latin-wght-normal.woff2"],
 ];
 mkdirSync(resolve(root, "dist/assets"), { recursive: true });
-mkdirSync(resolve(root, "public/fonts/ui"), { recursive: true });
+mkdirSync(resolve(root, "dist/themes"), { recursive: true });
+mkdirSync(resolve(root, "public/fonts/v0.3.0/ui"), { recursive: true });
 for (const [source, name] of assets) {
   copyFileSync(resolve(root, source), resolve(root, "dist/assets", name));
-  copyFileSync(resolve(root, source), resolve(root, "public/fonts/ui", name));
+  copyFileSync(resolve(root, source), resolve(root, "public/fonts/v0.3.0/ui", name));
 }
-const css = readFileSync(resolve(root, "src/element/fonts.css"), "utf8").replaceAll("/fonts/ui/", "./assets/");
-writeFileSync(resolve(root, "dist/heritage.css"), css);
+for (const name of ["heritage.css", "heritage-dark.css"]) {
+  const css = readFileSync(resolve(root, "src/themes", name), "utf8").replaceAll("/fonts/v0.3.0/ui/", "../assets/");
+  writeFileSync(resolve(root, "dist/themes", name), css);
+}

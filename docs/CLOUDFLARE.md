@@ -1,10 +1,8 @@
 # Cloudflare deployment
 
-The production topology is one Worker named `free-maps`, one private R2 bucket named `free-maps-basemap`, and one custom domain: `free-maps.forkandflag.com`.
+The production topology is one Worker named `free-maps`, one private R2 bucket named `free-maps-basemap`, and the custom domain `free-maps.forkandflag.com`. The more-specific Worker route remains in place so the parent zone wildcard does not capture demo traffic.
 
-The zone already has a `*.forkandflag.com/*` route for the Fork & Flag Worker. Because Worker Routes take precedence over Custom Domains, this project also owns the more-specific `free-maps.forkandflag.com/*` route. Cloudflare selects that route without changing or disabling the existing wildcard.
-
-## Archive
+## Immutable archive
 
 - Source build: `https://build.protomaps.com/20260717.pmtiles`
 - Extract bounds: `143.8,-38.8,146.3,-37.1`
@@ -12,30 +10,42 @@ The zone already has a `*.forkandflag.com/*` route for the Fork & Flag Worker. B
 - Size: `165359677` bytes
 - SHA-256: `4f01f7c811e855bd8ff788321aea02b3543be0d20a73d625851bef01e013e400`
 - R2 ETag: `"2ed7540f4d2ead6cc0168f973f385e2b"`
-- The object is immutable and versioned. Never overwrite or delete it during rollback.
 
-```bash
-brew install pmtiles
-npm run basemap:extract
-npm run basemap:verify
-npx wrangler r2 bucket create free-maps-basemap
-npm run basemap:upload
-openssl rand -base64 48 | npx wrangler secret put TILE_SESSION_SECRET
-npm run deploy
-```
+The archive is versioned and immutable. Never overwrite, delete, or cache the complete object during a deployment or rollback. The Worker reads only the requested PMTiles ranges.
 
-Wrangler currently supports single-object uploads up to 315 MB; the extraction verification refuses a larger archive. The Worker reads only requested PMTiles ranges from R2, caches resolved directories in-process, and stores token-free responses in `caches.default` only after origin/session authentication.
+## v0.3 cache and authentication model
 
-## Cache and authentication
+Wrangler enables Workers Cache with `cross_version_cache: false`. Deterministic demo datasets use a five-minute browser TTL and one-hour edge TTL with stale-while-revalidate. Health, tile sessions, errors, authenticated requests, and unsupported methods are `no-store`. HTML requires browser revalidation but has a short edge TTL. Only release-versioned or hashed assets receive one-year immutable caching.
 
-Tile sessions last 30 minutes and are HMAC-bound to one exact Origin. `free-maps.forkandflag.com` accepts only its own HTTPS origin. Non-production Workers and local development accept exact `localhost` or `127.0.0.1` origins. Every TileJSON and vector-tile request requires a valid matching session.
+Authenticated TileJSON and MVT responses continue to use `caches.default`, which is PoP-local and does not provide tiered caching or Cache API stale-while-revalidate. Authentication runs before cache lookup. Internal responses contain no token or caller Origin; client copies add CORS and private browser caching after retrieval. Cache keys include cache namespace/version, basemap version, archive key, encoding revision, and coordinates. Versioned missing tiles use a bounded 204 entry. Errors and 206 responses are never stored.
 
-Stable TileJSON caches for five minutes. Versioned tiles cache for one year with `immutable`. CORS is added after cache retrieval, so cached bodies never contain one caller's Origin. ETags support conditional requests.
+Tile sessions last 30 minutes and are HMAC-bound to one exact Origin. v0.3 accepts bearer credentials only in the `Authorization` header.
+
+## Pre-v0.3 production and zone baseline
+
+Captured before v0.3 code or zone changes on 2026-07-19:
+
+- Release deployment: `112c5b88-1a22-4a5e-8b74-3e1fb7c6be73`
+- Worker version: `801313c6-fd57-4da3-b829-0ecc2b668011`
+- Release commit: `afc4433a3265c9ae700584f30660821d47efb3f7`
+- Worker application version: `0.2.0`
+- Basemap version/key: `20260717` / `basemaps/greater-melbourne-20260717.pmtiles`
+- Zone Cache Rules: none
+- Zone Cache Response Rules: none
+- Active response-header transform: `3fb084cc912a4a30951a0ec71047ec39`, “Align public HTML Cache-Control at the edge (audit hardening)”, matching every `text/html` response and setting `public, max-age=60, s-maxage=600, stale-while-revalidate=900`
+- Web Analytics: parent-zone `forkandflag.com` automatic setup, site tag `706e6c0b44064ff0ac545ca49ad98c43`; the demo hostname was within its automatic injection scope
+- Worker Observability: enabled and retained
+
+The v0.3 zone change must be limited to `free-maps.forkandflag.com`: exclude that hostname from the transform rule rather than removing protection from the parent site, and disable automatic Web Analytics injection for only the demo hostname.
 
 ## Verification and rollback
 
-Record the archive byte size, SHA-256, R2 ETag, new deployment id and previous deployment id in the release evidence. Verify health, dataset 250/5000, token denial/issuance, TileJSON, one non-empty tile, cache miss-to-hit behavior, CSP, attribution and desktop/mobile UI. v0.2 uses static multi-page assets with `not_found_handling = "404-page"`; Worker-first routing remains restricted to `/api/*` and `/tiles/*`.
+Before production, upload a preview version and verify real R2 range reads, tile denial/issuance, internal hit diagnostics, dataset Workers Cache behavior, immutable assets, HTML revalidation, CSP, attribution, desktop/mobile UI, and zero analytics/Google requests.
 
-There was no pre-existing `free-maps` Worker when v0.1.0 provisioning began. The deployment immediately before the final route-specific cutover was `544c4ed2-4248-446b-8e3b-c2166c6be979`; the earlier verified Workers.dev build was `968e059c-1ecd-48ee-a3df-7782eea78fda`.
+Rollback code with:
 
-The production deployment immediately before v0.2 work began was `a46a7d85-de35-478b-a48c-0056f07a4e6e` (Worker version `45f337e9-ea8b-4ffd-a68f-4ac954e1d93a`). Rollback activates that deployment and does not mutate the versioned R2 object.
+```bash
+npx wrangler rollback 801313c6-fd57-4da3-b829-0ecc2b668011
+```
+
+Also restore the response-header transform and Web Analytics hostname settings recorded above if the v0.3 zone changes must be reverted. Rollback never mutates the retained PMTiles archive.

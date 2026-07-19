@@ -33,5 +33,5 @@ export async function verifyTileSession(secret: string, token: string, origin: s
 export function bearerToken(request: Request): string | null {
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) return authorization.slice(7);
-  return new URL(request.url).searchParams.get("token");
+  return null;
 }

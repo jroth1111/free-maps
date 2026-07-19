@@ -9,12 +9,15 @@ export interface Env {
   APP_VERSION: string;
   BASEMAP_VERSION: string;
   BASEMAP_KEY: string;
+  TILE_CACHE_NAMESPACE: string;
+  TILE_CACHE_VERSION: string;
+  TILE_ENCODING_REVISION: string;
   PRODUCTION_ORIGIN: string;
   GIT_COMMIT?: string;
   CF_VERSION_METADATA?: { id: string; tag?: string; timestamp?: string };
 }
 
-const json = (value: unknown, init: ResponseInit = {}) => { const headers = new Headers(init.headers); headers.set("Content-Type", "application/json; charset=utf-8"); return new Response(JSON.stringify(value), { ...init, headers }); };
+const json = (value: unknown, init: ResponseInit = {}) => { const headers = new Headers(init.headers); headers.set("Content-Type", "application/json; charset=utf-8"); if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(value), { ...init, headers }); };
 const headless = (request: Request, response: Response) => request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response;
 const isLocalOrigin = (origin: string) => { try { const url = new URL(origin); return (url.hostname === "localhost" || url.hostname === "127.0.0.1") && (url.protocol === "http:" || url.protocol === "https:"); } catch { return false; } };
 const allowedOrigin = (request: Request, env: Env) => {
@@ -37,7 +40,7 @@ const allowedTileOrigin = (request: Request, env: Env) => {
   const requestOrigin = requestUrl.origin;
   return requestOrigin === env.PRODUCTION_ORIGIN || requestUrl.hostname !== new URL(env.PRODUCTION_ORIGIN).hostname ? requestOrigin : null;
 };
-const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", ") } });
+const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", "), "Cache-Control": "no-store" } });
 
 export default {
   async fetch(request: Request, env: Env, context: ExecutionContextLike): Promise<Response> {
@@ -54,8 +57,9 @@ export default {
       if (rawSize !== "250" && rawSize !== "5000") return json({ error: "size must be 250 or 5000" }, { status: 400 });
       const size = Number(rawSize) as 250 | 5000;
       const etag = `W/"demo-${env.APP_VERSION}-${size}"`;
-      if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": "public, max-age=300, s-maxage=3600" } });
-      return headless(request, json(createDemoDataset(size), { headers: { ETag: etag, "Cache-Control": "public, max-age=300, s-maxage=3600", "Access-Control-Allow-Origin": "*" } }));
+      const cacheHeaders = { ETag: etag, "Cache-Control": "public, max-age=300", "Cloudflare-CDN-Cache-Control": "public, max-age=3600, stale-while-revalidate=1800", "Access-Control-Allow-Origin": "*", "X-Free-Maps-Invocation": crypto.randomUUID() };
+      if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: cacheHeaders });
+      return headless(request, json(createDemoDataset(size), { headers: cacheHeaders }));
     }
     if (url.pathname === "/api/tile-session") {
       const rejected = methodAllowed(request, ["POST"]); if (rejected) return rejected;
@@ -70,8 +74,31 @@ export default {
       // URL itself is the exact browser origin to which the token was bound.
       const origin = allowedTileOrigin(request, env);
       const token = bearerToken(request);
-      if (!origin || !token || !(await verifyTileSession(env.TILE_SESSION_SECRET, token, origin))) return json({ error: "Valid origin-bound tile session required" }, { status: 401 });
-      return handlePmtilesRequest({ bucket: env.BASEMAP, objectKey: env.BASEMAP_KEY, archiveName: "melbourne", version: env.BASEMAP_VERSION, request, context, corsOrigin: origin, publicHostname: url.hostname });
+      if (!origin || !token || !(await verifyTileSession(env.TILE_SESSION_SECRET, token, origin))) return json({ error: "Valid origin-bound tile session required" }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+      try {
+        return await handlePmtilesRequest({
+          bucket: env.BASEMAP,
+          objectKey: env.BASEMAP_KEY,
+          archiveName: "melbourne",
+          version: env.BASEMAP_VERSION,
+          request,
+          context,
+          corsOrigin: origin,
+          cachePolicy: {
+            namespace: env.TILE_CACHE_NAMESPACE,
+            version: env.TILE_CACHE_VERSION,
+            encodingRevision: env.TILE_ENCODING_REVISION,
+            tileJsonTtlSeconds: 3600,
+            tileTtlSeconds: 31_536_000,
+            negativeTtlSeconds: 300,
+            browserTileJsonTtlSeconds: 300,
+            browserTileTtlSeconds: 3600,
+            browserNegativeTtlSeconds: 60,
+          },
+        });
+      } catch {
+        return json({ error: "Tile storage is temporarily unavailable" }, { status: 502, headers: { "Cache-Control": "private, no-store" } });
+      }
     }
     if (url.pathname.startsWith("/api/")) return json({ error: "Not found" }, { status: 404 });
     return env.ASSETS.fetch(request);

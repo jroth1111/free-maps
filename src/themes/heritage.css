@@ -1,0 +1,58 @@
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+  src: url("/fonts/v0.3.0/ui/hanken-grotesk-latin-wght-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: optional;
+  src: url("/fonts/v0.3.0/ui/literata-latin-wght-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Hanken Grotesk Fallback";
+  src: local("Arial");
+  size-adjust: 101%;
+  ascent-override: 94%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Literata Fallback";
+  src: local("Georgia");
+  size-adjust: 93%;
+  ascent-override: 98%;
+  descent-override: 28%;
+  line-gap-override: 0%;
+}
+
+:where(.free-map-theme-heritage) {
+  --free-map-font-family: "Hanken Grotesk", "Hanken Grotesk Fallback", system-ui, sans-serif;
+  --free-map-heading-font-family: "Literata", "Literata Fallback", Georgia, serif;
+  --free-map-surface-canvas: #f8f5ef;
+  --free-map-surface: #fffdf9;
+  --free-map-surface-muted: #f2eee6;
+  --free-map-text: #22201e;
+  --free-map-text-muted: #665f57;
+  --free-map-border-color: #d9d1c4;
+  --free-map-accent: #8b2635;
+  --free-map-accent-hover: #6d1f2c;
+  --free-map-on-accent: #ffffff;
+  --free-map-focus: #a23b4c;
+  --free-map-control-surface: #fffdf9;
+  --free-map-control-text: #22201e;
+  --free-map-control-border: #d9d1c4;
+  --free-map-marker: #b58b34;
+  --free-map-marker-selected: #8b2635;
+  --free-map-marker-stroke: #fffdf9;
+  --free-map-cluster: #b58b34;
+  --free-map-cluster-medium: #9a6d1f;
+  --free-map-cluster-large: #8b2635;
+  --free-map-cluster-text: #ffffff;
+  --free-map-radius-small: 0.25rem;
+  --free-map-radius: 0.4rem;
+  --free-map-shadow-control: 0 2px 8px rgb(34 32 30 / 0.14);
+}

@@ -35,7 +35,7 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   expect(requests.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
   expect(tileResponses.some((response) => response.url.endsWith("/tiles/melbourne.json") && response.status === 200)).toBe(true);
   expect(tileResponses.some((response) => response.url.includes(".mvt") && response.status === 200 && response.encoding === "gzip")).toBe(true);
-  expect(requests.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com/i.test(url))).toBe(false);
+  expect(requests.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
   expect(consoleErrors).toEqual([]);
 
   const accessibility = await new AxeBuilder({ page }).include("free-map-explorer").analyze();

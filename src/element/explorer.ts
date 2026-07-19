@@ -2,18 +2,20 @@ import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { property, query as queryElement, state } from "lit/decorators.js";
 import { filterAndSortPoints, indexPoints, pointIsMappable, toRenderablePoints, type FreeMapActivation, type FreeMapDataset, type FreeMapElementOptions, type FreeMapPoint, type FreeMapSort, type IndexedFreeMapPoint, type MapRendererFactory, type MapRendererState } from "../core";
 import { FreeMapRuntimeController } from "./controller";
-import { heritageLightStyles } from "./styles";
+import { structuralStyles } from "./styles";
 
 const labels = { explorerTitle: "Map explorer", searchPlaceholder: "Search area, place…", categoryLabel: "Category", sortLabel: "Sort", allCategories: "All categories", showAll: "Show all", resetView: "Zoom to CBD", empty: "No places match these filters.", mapUnavailable: "Map unavailable", retry: "Try again", details: "View details" };
 const ROW_HEIGHT = 88;
 const OVERSCAN = 6;
 
 export class FreeMapExplorerElement extends LitElement {
-  static styles = heritageLightStyles;
+  static styles = structuralStyles;
   private runtime = new FreeMapRuntimeController(this);
   private _data: FreeMapDataset | null = null;
   private indexed: IndexedFreeMapPoint[] = [];
   private indexedDataset: FreeMapDataset | null = null;
+  private filteredMemo?: { dataset: FreeMapDataset; query: string; category: string; sort: FreeMapSort; indexed: IndexedFreeMapPoint[]; rows: FreeMapPoint[] };
+  private renderableMemo?: { dataset: FreeMapDataset; rows: FreeMapPoint[]; selectedId: string | null; validPoint: NonNullable<FreeMapElementOptions["validPoint"]>; points: MapRendererState["points"] };
 
   @property({ attribute: false }) get data(): FreeMapDataset | null { return this._data; }
   set data(value: FreeMapDataset | null) { const old = this._data; this._data = value; this.runtime.setData(value); this.requestUpdate("data", old); }
@@ -35,7 +37,23 @@ export class FreeMapExplorerElement extends LitElement {
 
   private get datasetValue(): FreeMapDataset | null { return this.runtime.dataset; }
   private get effectiveLabels() { return { ...labels, ...this.options.labels }; }
-  private get filtered() { const dataset = this.datasetValue; return dataset ? filterAndSortPoints(this.indexed, dataset.categories, this.query, this.category, this.sort) : []; }
+  private get filtered() {
+    const dataset = this.datasetValue;
+    if (!dataset) return [];
+    const cached = this.filteredMemo;
+    if (cached && cached.dataset === dataset && cached.indexed === this.indexed && cached.query === this.query && cached.category === this.category && cached.sort === this.sort) return cached.rows;
+    const rows = filterAndSortPoints(this.indexed, dataset.categories, this.query, this.category, this.sort);
+    this.filteredMemo = { dataset, indexed: this.indexed, query: this.query, category: this.category, sort: this.sort, rows };
+    return rows;
+  }
+  private renderable(rows: FreeMapPoint[], dataset: FreeMapDataset) {
+    const validPoint = this.options.validPoint ?? pointIsMappable;
+    const cached = this.renderableMemo;
+    if (cached && cached.dataset === dataset && cached.rows === rows && cached.selectedId === this.selectedId && cached.validPoint === validPoint) return cached.points;
+    const points = toRenderablePoints(rows, dataset, this.selectedId, validPoint);
+    this.renderableMemo = { dataset, rows, selectedId: this.selectedId, validPoint, points };
+    return points;
+  }
 
   async activate(): Promise<void> { await this.runtime.activate(); }
   async reload(): Promise<void> { await this.runtime.reload(); }
@@ -46,7 +64,8 @@ export class FreeMapExplorerElement extends LitElement {
   runtimeState(): MapRendererState | null {
     const dataset = this.datasetValue;
     if (!dataset) return null;
-    return { dataset, points: toRenderablePoints(this.filtered, dataset, this.selectedId, this.options.validPoint ?? pointIsMappable), selectedId: this.selectedId, options: this.options };
+    const rows = this.filtered;
+    return { dataset, points: this.renderable(rows, dataset), selectedId: this.selectedId, options: this.options };
   }
   runtimeSelect(id: string | null): void {
     const dataset = this.datasetValue;
@@ -59,7 +78,7 @@ export class FreeMapExplorerElement extends LitElement {
   protected updated(changed: PropertyValues<this>): void {
     if (changed.has("src")) this.runtime.setSrc(this.src);
     if (changed.has("activation")) this.runtime.activationChanged();
-    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); }
+    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); this.filteredMemo = undefined; this.renderableMemo = undefined; }
     if (changed.has("query") || changed.has("category") || changed.has("sort")) {
       const rows = this.filtered;
       if (this.datasetValue && this.selectedId && !rows.some((point) => point.id === this.selectedId)) this.runtimeSelect(null);
@@ -87,13 +106,13 @@ export class FreeMapExplorerElement extends LitElement {
     return html`<section class="details" part="details" aria-label="Selected place"><div class="details-meta">${this.filtered.length} in list${branchCount > 1 ? ` · 1 of ${branchCount} locations` : ""}</div><h2>${point.title}</h2>${point.summary ? html`<p>${point.summary}</p>` : nothing}${!pointIsMappable(point, dataset) ? html`<p class="unavailable">Map unavailable — this place remains available in the list.</p>` : nothing}<div class="links">${external ? html`<a href=${external} target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a>` : nothing}${detailUrl ? html`<a class="primary" href=${detailUrl}>${this.effectiveLabels.details}</a>` : nothing}</div></section>`;
   }
   render() {
-    if (this.runtime.phase === "error") return html`<div class="error" part="error" role="alert"><h2>${this.effectiveLabels.mapUnavailable}</h2><p>${this.runtime.failure?.message}</p>${this.runtime.failure?.retryable ? html`<button type="button" @click=${() => this.reload()}>${this.effectiveLabels.retry}</button>` : nothing}</div>`;
+    if (this.runtime.phase === "error") return html`<div class="error" part="errors" role="alert"><h2>${this.effectiveLabels.mapUnavailable}</h2><p>${this.runtime.failure?.message}</p>${this.runtime.failure?.retryable ? html`<button type="button" @click=${() => this.reload()}>${this.effectiveLabels.retry}</button>` : nothing}</div>`;
     const dataset = this.datasetValue;
-    if (!dataset || this.runtime.phase === "loading") return html`<div class="shell" part="shell" aria-busy="true"><div class="map" part="map"><div class="map-state" role="status">Loading map…</div></div></div>`;
+    if (!dataset || this.runtime.phase === "loading") return html`<div class="shell" part="shell" aria-busy="true"><div class="map" part="map"><div class="map-state" part="status" role="status">Loading map…</div></div></div>`;
     const rows = this.filtered;
     const selected = dataset.points.find((point) => point.id === this.selectedId);
-    const mapped = toRenderablePoints(rows, dataset, this.selectedId, this.options.validPoint ?? pointIsMappable);
-    return html`<div class="shell" part="shell">${this.hintVisible && !this.compact ? html`<div class="tip" part="hint" role="status"><span><strong>Interactive map</strong> — Pan, zoom, or choose a place. List and pins stay in sync.</span><button type="button" aria-label="Dismiss map tips" @click=${() => { this.hintVisible = false; }}>×</button></div>` : nothing}<div class="layout"><section class="controls" part="controls"><h2>${this.effectiveLabels.explorerTitle}</h2><p class="lede">${dataset.label} — filter the list and map together.</p><label class="search"><span class="sr-only">Search places</span><input part="search-input" type="search" .value=${this.query} placeholder=${this.effectiveLabels.searchPlaceholder} @input=${(event: InputEvent) => { this.query = (event.target as HTMLInputElement).value; }} /></label><div class="fields"><label class="field"><span>${this.effectiveLabels.categoryLabel}</span><select part="category-select" .value=${this.category} @change=${(event: Event) => { this.category = (event.target as HTMLSelectElement).value; }}><option value="all">${this.effectiveLabels.allCategories}</option>${dataset.categories.map((category) => html`<option value=${category.id}>${category.parentId ? "↳ " : ""}${category.label}</option>`)}</select></label><label class="field"><span>${this.effectiveLabels.sortLabel}</span><select part="sort-select" .value=${this.sort} @change=${(event: Event) => { this.sort = (event.target as HTMLSelectElement).value as FreeMapSort; }}><option value="ranking">Ranking</option><option value="score">Score</option><option value="name">Name (A–Z)</option></select></label></div></section><section class="map" part="map" aria-label=${`Map, ${mapped.length} locations`}><div class="map-actions"><button class="action" part="fit-button" type="button" @click=${() => this.fitAll()}>${this.effectiveLabels.showAll} ${mapped.length} pin${mapped.length === 1 ? "" : "s"}</button><button class="action" part="reset-button" type="button" @click=${() => this.resetView()}>${this.effectiveLabels.resetView}</button></div><div class="map-host"></div><div class="map-state" ?hidden=${this.runtime.active}>Map loads when eligible.</div></section><h2 class="sr-only" id="free-map-results">Place results</h2><div class="results" part="results" role="region" aria-label="Place results" @scroll=${this.onScroll}>${this.renderRows(rows, dataset)}</div>${selected ? this.renderDetails(selected, dataset) : nothing}</div></div>`;
+    const mapped = this.renderable(rows, dataset);
+    return html`<div class="shell" part="shell">${this.hintVisible && !this.compact ? html`<div class="tip" part="status" role="status"><span><strong>Interactive map</strong> — Pan, zoom, or choose a place. List and pins stay in sync.</span><button type="button" aria-label="Dismiss map tips" @click=${() => { this.hintVisible = false; }}>×</button></div>` : nothing}<div class="layout"><section class="controls" part="controls"><h2>${this.effectiveLabels.explorerTitle}</h2><p class="lede">${dataset.label} — filter the list and map together.</p><label class="search"><span class="sr-only">Search places</span><input part="search-input" type="search" .value=${this.query} placeholder=${this.effectiveLabels.searchPlaceholder} @input=${(event: InputEvent) => { this.query = (event.target as HTMLInputElement).value; }} /></label><div class="fields"><label class="field"><span>${this.effectiveLabels.categoryLabel}</span><select part="category-select" .value=${this.category} @change=${(event: Event) => { this.category = (event.target as HTMLSelectElement).value; }}><option value="all">${this.effectiveLabels.allCategories}</option>${dataset.categories.map((category) => html`<option value=${category.id}>${category.parentId ? "↳ " : ""}${category.label}</option>`)}</select></label><label class="field"><span>${this.effectiveLabels.sortLabel}</span><select part="sort-select" .value=${this.sort} @change=${(event: Event) => { this.sort = (event.target as HTMLSelectElement).value as FreeMapSort; }}><option value="ranking">Ranking</option><option value="score">Score</option><option value="name">Name (A–Z)</option></select></label></div></section><section class="map" part="map" aria-label=${`Map, ${mapped.length} locations`}><div class="map-actions"><button class="action" part="fit-button" type="button" @click=${() => this.fitAll()}>${this.effectiveLabels.showAll} ${mapped.length} pin${mapped.length === 1 ? "" : "s"}</button><button class="action" part="reset-button" type="button" @click=${() => this.resetView()}>${this.effectiveLabels.resetView}</button></div><div class="map-host"></div><div class="map-state" part="status" ?hidden=${this.runtime.active}>Map loads when eligible.</div></section><h2 class="sr-only" id="free-map-results">Place results</h2><div class="results" part="results" role="region" aria-label="Place results" @scroll=${this.onScroll}>${this.renderRows(rows, dataset)}</div>${selected ? this.renderDetails(selected, dataset) : nothing}</div></div>`;
   }
 }
 

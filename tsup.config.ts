@@ -15,5 +15,5 @@ export default defineConfig({
   sourcemap: false,
   clean: false,
   treeshake: true,
-  external: ["react", "react-dom"],
+  external: ["react", "react-dom", "maplibre-gl", "maplibre-gl/dist/maplibre-gl-csp"],
 });

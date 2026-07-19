@@ -21,7 +21,7 @@ export default defineConfig({
   build: {
     outDir: "../demo-dist",
     emptyOutDir: true,
-    sourcemap: false,
+    sourcemap: true,
     rollupOptions: {
       input: {
         index: resolve("demo/index.html"),
