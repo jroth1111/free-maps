@@ -6,15 +6,22 @@ if (!baseUrl) throw new Error("Set CACHE_BASE_URL or pass the deployment origin"
 const base = new URL(baseUrl);
 const packageVersion = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 const strict = process.env.CACHE_STRICT_CLOUDFLARE === "1" || base.hostname === "free-maps.forkandflag.com";
+const versionOverrideId = process.env.WORKER_VERSION_OVERRIDE_ID;
 const failures = [];
-const evidence = { baseUrl: base.origin, strict, capturedAt: new Date().toISOString(), requests: {} };
+const evidence = { baseUrl: base.origin, strict, versionOverrideId: versionOverrideId ?? null, capturedAt: new Date().toISOString(), requests: {} };
 
 const selectedHeaders = (response) => Object.fromEntries([
   "cache-control", "cloudflare-cdn-cache-control", "cf-cache-status", "age", "etag",
   "x-free-maps-cache", "x-free-maps-invocation", "server-timing", "access-control-allow-origin",
 ].map((name) => [name, response.headers.get(name)]));
+const withVersionOverride = (init = {}) => {
+  if (!versionOverrideId) return init;
+  const headers = new globalThis.Headers(init.headers);
+  headers.set("Cloudflare-Workers-Version-Overrides", `free-maps="${versionOverrideId}"`);
+  return { ...init, headers };
+};
 const capture = async (name, path, init) => {
-  const response = await fetch(new URL(path, base), init);
+  const response = await fetch(new URL(path, base), withVersionOverride(init));
   evidence.requests[name] = { url: response.url.replace(/[?&]token=[^&]+/g, ""), status: response.status, headers: selectedHeaders(response) };
   await response.arrayBuffer();
   return response;
@@ -42,7 +49,7 @@ if (strict) {
   expect(datasetCold.headers.get("x-free-maps-invocation") === datasetWarm.headers.get("x-free-maps-invocation"), "Warm dataset must preserve the cached invocation id and bypass Worker execution");
 }
 
-const session = await fetch(new URL("/api/tile-session", base), { method: "POST", headers: { origin: base.origin, accept: "application/json", "content-type": "application/json" }, body: "{}" });
+const session = await fetch(new URL("/api/tile-session", base), withVersionOverride({ method: "POST", headers: { origin: base.origin, accept: "application/json", "content-type": "application/json" }, body: "{}" }));
 const body = await session.json();
 expect(session.status === 200 && typeof body.token === "string", "Tile session must issue a bearer token");
 evidence.requests.session = { url: session.url, status: session.status, headers: selectedHeaders(session) };
