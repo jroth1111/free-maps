@@ -1,7 +1,7 @@
-import maplibregl from "maplibre-gl/dist/maplibre-gl-csp";
 import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import type { FeatureCollection, Point } from "geojson";
 import { type MapRenderer, type MapRendererState, type RenderablePoint } from "../core";
+import { loadMapLibre } from "./loader";
 import { getSharedTileSession, resolveProtectedPrefix, resolveTileHeaders, scopedRequestHeaders, type TileHeaders, type TileSessionOptions } from "./session";
 import { loadMapStyle } from "./style";
 
@@ -70,6 +70,12 @@ export function assertRendererOptions(options: MapLibreRendererOptions): void {
 
 let prewarmed = false;
 
+const yieldMainThread = (): Promise<void> => {
+  const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (scheduler?.yield) return scheduler.yield();
+  return new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 const pointsEqual = (left: RenderablePoint[] | undefined, right: RenderablePoint[]) => {
   if (left === right) return true;
   if (!left || left.length !== right.length) return false;
@@ -104,16 +110,25 @@ export class MapLibreRenderer implements MapRenderer {
     container.before(stylesheet);
     this.stylesheet = stylesheet;
 
-    maplibregl.setWorkerUrl(this.options.workerUrl);
-    if (this.options.sharedWorkerPool !== false && !prewarmed) { maplibregl.prewarm(); prewarmed = true; }
-
+    // The optional graphics peer, style and short-lived credentials are all
+    // independent once activation is eligible. Starting them together avoids
+    // a serial waterfall without preloading MapLibre during the static shell.
+    const mapLibrePromise = loadMapLibre();
     const stylePromise = this.options.style ? Promise.resolve(structuredClone(this.options.style)) : loadMapStyle(this.options.styleUrl!);
     const credentialsPromise = this.options.tileSession ? Promise.all([
       getSharedTileSession(this.options.tileSession, this.abort.signal),
       resolveTileHeaders(this.options.tileHeaders),
     ]) : Promise.resolve(null);
-    const [style, credentials] = await Promise.all([stylePromise, credentialsPromise]);
+    const [mapLibreModule, style, credentials] = await Promise.all([mapLibrePromise, stylePromise, credentialsPromise]);
     if (this.abort.signal.aborted) throw new DOMException("Map activation was cancelled", "AbortError");
+    // Module evaluation is necessarily a single graphics-library task. Yield
+    // before constructing the map so setup cannot extend that task and block
+    // unrelated input or paint work.
+    await yieldMainThread();
+    if (this.abort.signal.aborted) throw new DOMException("Map activation was cancelled", "AbortError");
+    const maplibregl = mapLibreModule.default;
+    maplibregl.setWorkerUrl(this.options.workerUrl);
+    if (this.options.sharedWorkerPool !== false && !prewarmed) { maplibregl.prewarm(); prewarmed = true; }
     if (this.options.tileJsonUrl && style.sources.protomaps && "url" in style.sources.protomaps) style.sources.protomaps.url = new URL(this.options.tileJsonUrl, location.href).href;
     const prefix = this.options.tileSession ? resolveProtectedPrefix(this.options.tileSession) : undefined;
     const map = new maplibregl.Map({
