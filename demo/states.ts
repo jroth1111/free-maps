@@ -2,6 +2,9 @@ import type { FreeMapExplorerElement } from "../src/element";
 import { fetchDataset, options, register } from "./shared";
 import "../src/themes/atlas.css";
 import "../src/themes/atlas-dark.css";
+import "../src/themes/signal.css";
+import "../src/themes/signal-dark.css";
+import "../src/themes/contrast.css";
 
 register();
 for (const element of document.querySelectorAll<FreeMapExplorerElement>("free-map-explorer")) element.options = options;
@@ -14,3 +17,6 @@ const missingPoint = dataset.points.find((point: { position?: unknown }) => !poi
 document.querySelector<FreeMapExplorerElement>("#missing")!.data = { ...dataset, id: "missing", points: missingPoint ? [missingPoint] : [] };
 document.querySelector<FreeMapExplorerElement>("#theme")!.data = { ...dataset, id: "theme", points: dataset.points.slice(0, 20) };
 document.querySelector<FreeMapExplorerElement>("#theme-dark")!.data = { ...dataset, id: "theme-dark", points: dataset.points.slice(20, 40) };
+document.querySelector<FreeMapExplorerElement>("#signal")!.data = { ...dataset, id: "signal", points: dataset.points.slice(40, 60) };
+document.querySelector<FreeMapExplorerElement>("#signal-dark")!.data = { ...dataset, id: "signal-dark", points: dataset.points.slice(60, 80) };
+document.querySelector<FreeMapExplorerElement>("#contrast")!.data = { ...dataset, id: "contrast", points: dataset.points.slice(80, 100) };

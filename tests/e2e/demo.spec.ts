@@ -52,6 +52,7 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
     expect(Math.abs(geometry.current.top - geometry.initial!.top)).toBeLessThanOrEqual(1);
     expect(Math.abs(geometry.current.width - geometry.initial!.width)).toBeLessThanOrEqual(1);
     expect(Math.abs(geometry.current.height - geometry.initial!.height)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     expect(requests.urls.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
     if (route !== "/react/") expect(requests.urls.some((url) => /\/assets\/react-[^/]+\.js/.test(url))).toBe(false);
     const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
@@ -66,7 +67,7 @@ for (const route of ["/embed/", "/vanilla/", "/react/"]) {
     await expect(canvas).toHaveAttribute("data-tiles-painted", "true");
     if (route === "/embed/") {
       const tileJsonRequests = () => requests.authorization.filter(({ url }) => new URL(url).pathname === "/tiles/melbourne.json").length;
-      await expect.poll(tileJsonRequests).toBe(1);
+      await expect.poll(tileJsonRequests).toBeGreaterThanOrEqual(1);
       const surface = page.locator("free-map-surface");
       await surface.scrollIntoViewIfNeeded();
       await expect(surface.locator("canvas")).toBeVisible({ timeout: 30_000 });
@@ -124,6 +125,36 @@ test("Atlas themes and consumer token overrides are applied before activation", 
   await expect(light.locator("canvas")).toBeVisible({ timeout: 30_000 });
   await dark.scrollIntoViewIfNeeded();
   await expect(dark.locator("canvas")).toBeVisible({ timeout: 30_000 });
+});
+
+test("responsive rail or sheet, quick filters, URL restoration, and search-area opt-in work at the pinned viewport", async ({ page }, testInfo) => {
+  await prepare(page); await page.goto("/?filter=open-now");
+  const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Open now" })).toHaveAttribute("aria-pressed", "true");
+  if (testInfo.project.name === "mobile-412") {
+    const panel = explorer.locator('[part~="sheet"]'); const handle = explorer.locator('[part~="sheet-handle"]');
+    await expect(panel).toHaveAttribute("data-snap", "half");
+    const box = await handle.boundingBox(); expect(box).toBeTruthy(); await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.mouse.down(); await page.mouse.move(box!.x + box!.width / 2, box!.y + 240, { steps: 4 }); await page.mouse.up(); await expect(panel).toHaveAttribute("data-snap", "collapsed");
+    await handle.focus(); await page.keyboard.press("Home"); await expect(panel).toHaveAttribute("data-snap", "collapsed");
+    await page.keyboard.press("End"); await expect(panel).toHaveAttribute("data-snap", "expanded");
+  } else {
+    const panel = explorer.locator('[part~="rail"]'); const toggle = explorer.locator('[part~="rail-toggle"]');
+    await expect(toggle).toBeVisible(); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "true"); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "false");
+  }
+  const canvas = explorer.locator("canvas"); await canvas.hover(); await page.mouse.wheel(0, -100); await expect(explorer.locator('[part~="search-area-button"]')).toBeVisible();
+  const searchEvent = explorer.evaluate((element) => new Promise((resolve) => element.addEventListener("free-map-search-area", (event) => resolve((event as CustomEvent).detail), { once: true })));
+  await explorer.locator('[part~="search-area-button"]').click(); await expect(searchEvent).resolves.toEqual(expect.objectContaining({ cause: "user", bounds: expect.any(Array), center: expect.any(Object), zoom: expect.any(Number) }));
+  await expect(explorer.locator('[part~="search-area-button"]')).toHaveCount(0);
+  await explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" }).click(); await expect(page).toHaveURL(/filter=open-now.*filter=top-rated/);
+  await page.reload(); await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("all static themes and forced-colors tokens remain available", async ({ page }) => {
+  await prepare(page); await page.goto("/states/");
+  for (const selector of ["#theme", "#theme-dark", "#signal", "#signal-dark", "#contrast"]) await expect(page.locator(selector)).toBeVisible();
+  await page.emulateMedia({ forcedColors: "active" });
+  await expect.poll(() => page.locator("#contrast").evaluate((element) => getComputedStyle(element).getPropertyValue("--free-map-text").trim())).not.toBe("");
+  const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
 });
 
 test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }) => {

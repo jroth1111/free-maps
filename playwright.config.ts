@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 
 const liveBaseURL = process.env.LIVE_BASE_URL;
 const baseURL = liveBaseURL ?? "http://127.0.0.1:4173";
@@ -14,8 +14,9 @@ export default defineConfig({
   reporter: [["html", { open: "never" }], ["list"]],
   use: { baseURL, extraHTTPHeaders, trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
+    { name: "mobile-412", use: { browserName: "chromium", viewport: { width: 412, height: 823 }, deviceScaleFactor: 1.75, isMobile: true, hasTouch: true } },
+    { name: "ipad-768", use: { browserName: "chromium", viewport: { width: 768, height: 1024 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } },
+    { name: "desktop-1350", use: { browserName: "chromium", viewport: { width: 1350, height: 940 }, deviceScaleFactor: 1 } },
   ],
   webServer: liveBaseURL ? undefined : { command: "npm run preview:test", url: "http://127.0.0.1:4173", reuseExistingServer: false, timeout: 120_000 },
 });

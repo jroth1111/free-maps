@@ -1,12 +1,12 @@
 import { VectorTile, type VectorTileFeature } from "@mapbox/vector-tile";
 import Pbf from "pbf";
-import type { MapRenderer, MapRendererState, RenderablePoint } from "../core";
+import type { MapRenderer, MapRendererMountOptions, MapRendererState, MapViewportCause, RenderablePoint } from "../core";
 import { getSharedTileSession, resolveProtectedPrefix, resolveTileHeaders, scopedRequestHeaders, type TileHeaders, type TileSessionOptions } from "../maplibre/session";
 
 const TILE_SIZE = 256;
 const MAX_TILE_ZOOM = 12;
 const DRAW_LAYERS = ["landuse", "water", "buildings", "roads"] as const;
-const FEATURE_LIMITS: Record<(typeof DRAW_LAYERS)[number], number> = { landuse: 50, water: 50, buildings: 100, roads: 200 };
+const FEATURE_LIMITS: Record<(typeof DRAW_LAYERS)[number], number> = { landuse: 16, water: 16, buildings: 32, roads: 48 };
 
 interface TileJson {
   tiles: string[];
@@ -25,15 +25,33 @@ interface DrawFeature {
 
 interface DrawTile { x: number; y: number; z: number; features: DrawFeature[]; }
 interface ScreenTarget { x: number; y: number; radius: number; points: RenderablePoint[]; lng: number; lat: number; }
+interface TileJsonResult { value: TileJson; responseUrl: string; }
 
 export interface VectorCanvasRendererOptions {
   tileJsonUrl: string;
+  basemapStyle: VectorBasemapStyle;
   tileSession?: TileSessionOptions;
   tileHeaders?: TileHeaders;
   devicePixelRatioCeiling?: number;
   minZoom?: number;
   maxZoom?: number;
 }
+
+export interface VectorBasemapStyle {
+  background: string;
+  water: string;
+  landUse: string;
+  building: string;
+  road: string;
+  majorRoad: string;
+  highway: string;
+  attributionBackground: string;
+  attributionText: string;
+}
+
+export const neutralLightBasemap: Readonly<VectorBasemapStyle> = Object.freeze({ background: "#eef2f3", water: "#b9dce8", landUse: "#dce8d5", building: "#ddd9d2", road: "#c8c6c1", majorRoad: "#ffffff", highway: "#f0d38a", attributionBackground: "rgb(255 255 255 / .86)", attributionText: "#334155" });
+export const neutralDarkBasemap: Readonly<VectorBasemapStyle> = Object.freeze({ background: "#111827", water: "#173a4a", landUse: "#1d352d", building: "#303744", road: "#475569", majorRoad: "#64748b", highway: "#9a7b3f", attributionBackground: "rgb(15 23 42 / .88)", attributionText: "#e2e8f0" });
+const basemapKeys: Array<keyof VectorBasemapStyle> = ["background", "water", "landUse", "building", "road", "majorRoad", "highway", "attributionBackground", "attributionText"];
 
 const yieldMainThread = (): Promise<void> => {
   const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
@@ -76,7 +94,7 @@ async function decodeTile(buffer: ArrayBuffer, x: number, y: number, z: number):
     const limit = Math.min(layer.length, FEATURE_LIMITS[layerName]);
     for (let index = 0; index < limit; index++) {
       features.push(decodeFeature(layerName, layer.feature(index)));
-      if (++decoded % 24 === 0) await yieldMainThread();
+      if (++decoded % 4 === 0) await yieldMainThread();
     }
   }
   return { x, y, z, features };
@@ -99,19 +117,26 @@ export class VectorCanvasRenderer implements MapRenderer {
   private resize?: ResizeObserver;
   private controls?: HTMLElement;
   private attribution?: HTMLElement;
-  private dragging?: { x: number; y: number; centerX: number; centerY: number };
+  private dragging?: { x: number; y: number; latestX: number; latestY: number; centerX: number; centerY: number; moved: boolean };
+  private panFrame: number | null = null;
+  private tileRequestFrame: number | null = null;
+  private suppressNextClick = false;
   private tileRequestRevision = 0;
+  private tileJsonPromise?: Promise<TileJsonResult>;
   private listeners: Array<() => void> = [];
+  private onViewportChange?: MapRendererMountOptions["onViewportChange"];
 
   constructor(private options: VectorCanvasRendererOptions) {
     if (!options.tileJsonUrl) throw new Error("VectorCanvasRendererOptions.tileJsonUrl is required");
+    if (!options.basemapStyle || basemapKeys.some((key) => typeof options.basemapStyle[key] !== "string" || !options.basemapStyle[key].trim())) throw new Error("VectorCanvasRendererOptions.basemapStyle requires explicit background, water, landUse, building, road, majorRoad, highway, attributionBackground, and attributionText colors");
     if (options.tileHeaders && !options.tileSession) throw new Error("tileHeaders requires tileSession.protectedUrlPrefix so credentials can be scoped safely");
   }
 
-  async mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void): Promise<void> {
+  async mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void, mountOptions?: MapRendererMountOptions): Promise<void> {
     if (this.canvas) { await this.update(state); return; }
     this.state = state;
     this.onSelect = onSelect;
+    this.onViewportChange = mountOptions?.onViewportChange;
     this.center = { ...state.dataset.center };
     this.zoom = state.dataset.defaultZoom;
     const canvas = document.createElement("canvas");
@@ -151,18 +176,22 @@ export class VectorCanvasRenderer implements MapRenderer {
       const spanY = Math.abs(latToWorld(bounds[1], zoom) - latToWorld(bounds[3], zoom));
       if (spanX <= width - 112 && spanY <= height - 112) { this.zoom = zoom; break; }
     }
-    this.draw(); this.requestVisibleTiles();
+    this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
   resetView(): void {
     if (!this.state) return;
     this.center = { ...this.state.dataset.center };
     this.zoom = this.state.dataset.defaultZoom;
-    this.draw(); this.requestVisibleTiles();
+    this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
   destroy(): void {
     this.abort.abort();
+    if (this.panFrame !== null && this.panFrame >= 0) cancelAnimationFrame(this.panFrame);
+    if (this.tileRequestFrame !== null && this.tileRequestFrame >= 0) cancelAnimationFrame(this.tileRequestFrame);
+    this.panFrame = null;
+    this.tileRequestFrame = null;
     this.resize?.disconnect();
     for (const remove of this.listeners) remove();
     this.listeners = [];
@@ -193,12 +222,14 @@ export class VectorCanvasRenderer implements MapRenderer {
       const button = document.createElement("button");
       button.type = "button"; button.setAttribute("aria-label", label); button.textContent = text;
       Object.assign(button.style, { background: "var(--free-map-control-surface,#fff)", border: "1px solid var(--free-map-control-border,#cbd5e1)", color: "var(--free-map-control-text,#172033)", cursor: "pointer", font: "700 20px/1 system-ui", height: "30px", width: "30px" });
-      button.addEventListener("click", () => this.changeZoom(delta));
+      const zoom = () => this.changeZoom(delta, "user");
+      button.addEventListener("click", zoom);
+      this.listeners.push(() => button.removeEventListener("click", zoom));
       controls.append(button);
     }
     const attribution = document.createElement("div");
     attribution.innerHTML = '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> · <a href="https://protomaps.com" target="_blank" rel="noopener">Protomaps</a>';
-    Object.assign(attribution.style, { background: "color-mix(in srgb,var(--free-map-control-surface,#fff) 86%,transparent)", bottom: "0", color: "var(--free-map-control-text,#172033)", font: "10px/14px system-ui", left: "0", padding: "0 5px", position: "absolute", zIndex: "2" });
+    Object.assign(attribution.style, { background: this.options.basemapStyle.attributionBackground, bottom: "0", color: this.options.basemapStyle.attributionText, font: "10px/14px system-ui", left: "0", padding: "0 5px", position: "absolute", zIndex: "2" });
     for (const link of attribution.querySelectorAll("a")) { link.style.color = "inherit"; link.style.textDecoration = "none"; }
     container.append(controls, attribution);
     this.controls = controls;
@@ -213,18 +244,28 @@ export class VectorCanvasRenderer implements MapRenderer {
     };
     on("pointerdown", (event) => {
       canvas.setPointerCapture(event.pointerId);
-      this.dragging = { x: event.clientX, y: event.clientY, centerX: lngToWorld(this.center.lng, this.zoom), centerY: latToWorld(this.center.lat, this.zoom) };
+      this.dragging = { x: event.clientX, y: event.clientY, latestX: event.clientX, latestY: event.clientY, centerX: lngToWorld(this.center.lng, this.zoom), centerY: latToWorld(this.center.lat, this.zoom), moved: false };
     });
     on("pointermove", (event) => {
       if (!this.dragging) return;
-      this.center = { lng: worldToLng(this.dragging.centerX - (event.clientX - this.dragging.x), this.zoom), lat: worldToLat(this.dragging.centerY - (event.clientY - this.dragging.y), this.zoom) };
-      this.draw();
+      this.dragging.latestX = event.clientX;
+      this.dragging.latestY = event.clientY;
+      this.dragging.moved ||= Math.hypot(event.clientX - this.dragging.x, event.clientY - this.dragging.y) > 5;
+      this.schedulePanDraw();
     });
-    const finishDrag = () => { if (this.dragging) { this.dragging = undefined; this.requestVisibleTiles(); } };
-    on("pointerup", finishDrag); on("pointercancel", finishDrag);
-    on("wheel", (event) => { event.preventDefault(); this.changeZoom(event.deltaY < 0 ? 1 : -1); }, { passive: false });
+    const finishDrag = (cancelled = false) => {
+      if (!this.dragging) return;
+      this.paintPan();
+      this.suppressNextClick = !cancelled && this.dragging.moved;
+      this.dragging = undefined;
+      this.requestVisibleTiles();
+      this.emitViewport("user");
+    };
+    on("pointerup", () => finishDrag()); on("pointercancel", () => finishDrag(true));
+    on("wheel", (event) => { event.preventDefault(); this.changeZoom(event.deltaY < 0 ? 1 : -1, "user"); }, { passive: false });
     on("click", (event) => {
       if (!this.canvas) return;
+      if (this.suppressNextClick) { this.suppressNextClick = false; return; }
       const rect = this.canvas.getBoundingClientRect();
       const x = event.clientX - rect.left; const y = event.clientY - rect.top;
       const target = this.targets.find((candidate) => Math.hypot(candidate.x - x, candidate.y - y) <= candidate.radius + 6);
@@ -232,34 +273,63 @@ export class VectorCanvasRenderer implements MapRenderer {
         const worldX = lngToWorld(this.center.lng, this.zoom) + x - rect.width / 2;
         const worldY = latToWorld(this.center.lat, this.zoom) + y - rect.height / 2;
         this.center = { lng: worldToLng(worldX, this.zoom), lat: worldToLat(worldY, this.zoom) };
-        this.changeZoom(1);
+        this.changeZoom(1, "user");
         return;
       }
       if (target.points.length === 1 && target.points[0]!.id !== this.state?.selectedId) this.onSelect?.(target.points[0]!.id);
-      else if (target.points.length === 1) { this.center = { lng: target.lng, lat: target.lat }; this.changeZoom(1); }
-      else { this.center = { lng: target.lng, lat: target.lat }; this.changeZoom(1); }
+      else if (target.points.length === 1) { this.center = { lng: target.lng, lat: target.lat }; this.changeZoom(1, "user"); }
+      else { this.center = { lng: target.lng, lat: target.lat }; this.changeZoom(1, "user"); }
     });
     on("keydown", (event) => {
-      if (event.key === "+" || event.key === "=") this.changeZoom(1);
-      else if (event.key === "-") this.changeZoom(-1);
+      if (event.key === "+" || event.key === "=") this.changeZoom(1, "user");
+      else if (event.key === "-") this.changeZoom(-1, "user");
       else if (event.key.startsWith("Arrow")) {
         const amount = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -80 : 80;
         const x = lngToWorld(this.center.lng, this.zoom) + (event.key === "ArrowLeft" || event.key === "ArrowRight" ? amount : 0);
         const y = latToWorld(this.center.lat, this.zoom) + (event.key === "ArrowUp" || event.key === "ArrowDown" ? amount : 0);
-        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.draw(); this.requestVisibleTiles();
+        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.draw(); this.requestVisibleTiles(); this.emitViewport("user");
       }
     });
   }
 
-  private changeZoom(delta: number): void {
+  private changeZoom(delta: number, cause: MapViewportCause): void {
     this.zoom = clamp(this.zoom + delta, this.options.minZoom ?? 3, this.options.maxZoom ?? 17);
-    this.draw(); this.requestVisibleTiles();
+    this.draw(); this.requestVisibleTiles(); this.emitViewport(cause);
+  }
+
+  private emitViewport(cause: MapViewportCause): void {
+    if (!this.canvas || !this.onViewportChange) return;
+    const centerX = lngToWorld(this.center.lng, this.zoom); const centerY = latToWorld(this.center.lat, this.zoom);
+    const halfWidth = this.canvas.clientWidth / 2; const halfHeight = this.canvas.clientHeight / 2;
+    this.onViewportChange({ bounds: [worldToLng(centerX - halfWidth, this.zoom), worldToLat(centerY + halfHeight, this.zoom), worldToLng(centerX + halfWidth, this.zoom), worldToLat(centerY - halfHeight, this.zoom)], center: { ...this.center }, zoom: this.zoom, cause });
   }
 
   private requestVisibleTiles(): void {
-    void this.loadVisibleTiles().catch((cause) => {
-      if (!this.abort.signal.aborted) console.error("Free Maps vector tile refresh failed", cause);
+    if (this.tileRequestFrame !== null) return;
+    this.tileRequestFrame = -1;
+    const frame = requestAnimationFrame(() => {
+      this.tileRequestFrame = null;
+      void this.loadVisibleTiles().catch((cause) => {
+        if (!this.abort.signal.aborted) console.error("Free Maps vector tile refresh failed", cause);
+      });
     });
+    if (this.tileRequestFrame !== null) this.tileRequestFrame = frame;
+  }
+
+  private schedulePanDraw(): void {
+    if (this.panFrame !== null) return;
+    this.panFrame = -1;
+    const frame = requestAnimationFrame(() => { this.panFrame = null; this.paintPan(); });
+    if (this.panFrame !== null) this.panFrame = frame;
+  }
+
+  private paintPan(): void {
+    if (!this.dragging) return;
+    this.center = {
+      lng: worldToLng(this.dragging.centerX - (this.dragging.latestX - this.dragging.x), this.zoom),
+      lat: worldToLat(this.dragging.centerY - (this.dragging.latestY - this.dragging.y), this.zoom),
+    };
+    this.draw();
   }
 
   private async credentials(): Promise<{ prefix?: URL; token?: string; tileHeaders: Record<string, string> }> {
@@ -274,17 +344,23 @@ export class VectorCanvasRenderer implements MapRenderer {
     const revision = ++this.tileRequestRevision;
     const { prefix, token, tileHeaders } = await this.credentials();
     const tileJsonUrl = new URL(this.options.tileJsonUrl, location.href).href;
-    const tileJsonHeaders = prefix && token ? scopedRequestHeaders(tileJsonUrl, prefix, token, tileHeaders) : undefined;
-    const tileJsonResponse = await fetch(tileJsonUrl, { headers: tileJsonHeaders, signal: this.abort.signal });
-    if (!tileJsonResponse.ok) throw new Error(`TileJSON request failed with ${tileJsonResponse.status}`);
-    const tileJson = await tileJsonResponse.json() as TileJson;
+    if (!this.tileJsonPromise) {
+      const tileJsonHeaders = prefix && token ? scopedRequestHeaders(tileJsonUrl, prefix, token, tileHeaders) : undefined;
+      this.tileJsonPromise = fetch(tileJsonUrl, { headers: tileJsonHeaders, signal: this.abort.signal }).then(async (response) => {
+        if (!response.ok) throw new Error(`TileJSON request failed with ${response.status}`);
+        return { value: await response.json() as TileJson, responseUrl: response.url || tileJsonUrl };
+      }).catch((cause) => { this.tileJsonPromise = undefined; throw cause; });
+    }
+    const { value: tileJson, responseUrl } = await this.tileJsonPromise;
     const tileZoom = clamp(Math.floor(this.zoom) - 1, tileJson.minzoom ?? 0, Math.min(tileJson.maxzoom ?? MAX_TILE_ZOOM, MAX_TILE_ZOOM));
     const scale = 2 ** (this.zoom - tileZoom);
     const width = this.canvas.clientWidth; const height = this.canvas.clientHeight;
     const centerX = lngToWorld(this.center.lng, tileZoom); const centerY = latToWorld(this.center.lat, tileZoom);
     const minX = Math.floor((centerX - width / (2 * scale)) / TILE_SIZE); const maxX = Math.floor((centerX + width / (2 * scale)) / TILE_SIZE);
-    const minY = Math.floor((centerY - height / (2 * scale)) / TILE_SIZE); const maxY = Math.floor((centerY + height / (2 * scale)) / TILE_SIZE);
-    const template = new URL(tileJson.tiles[0]!, tileJsonResponse.url || tileJsonUrl).href.replaceAll("%7B", "{").replaceAll("%7D", "}");
+    const worldTileLimit = 2 ** tileZoom - 1;
+    const minY = clamp(Math.floor((centerY - height / (2 * scale)) / TILE_SIZE), 0, worldTileLimit);
+    const maxY = clamp(Math.floor((centerY + height / (2 * scale)) / TILE_SIZE), 0, worldTileLimit);
+    const template = new URL(tileJson.tiles[0]!, responseUrl).href.replaceAll("%7B", "{").replaceAll("%7D", "}");
     const jobs: Array<Promise<{ buffer?: ArrayBuffer; x: number; y: number; z: number }>> = [];
     for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
       const normalizedX = ((x % 2 ** tileZoom) + 2 ** tileZoom) % 2 ** tileZoom;
@@ -314,7 +390,7 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (!canvas || !context || !state) return;
     const width = canvas.clientWidth; const height = canvas.clientHeight;
     const styles = getComputedStyle(canvas);
-    const background = cssToken(styles, "--free-map-surface-muted", "#f2f1ec");
+    const background = this.options.basemapStyle.background;
     context.clearRect(0, 0, width, height); context.fillStyle = background; context.fillRect(0, 0, width, height);
     for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
     this.drawPoints(context, state.points, state.selectedId, width, height, styles);
@@ -335,10 +411,10 @@ export class VectorCanvasRenderer implements MapRenderer {
       if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
     }
     if (feature.type === 3) {
-      context.fillStyle = feature.layer === "water" ? "#aadaff" : feature.layer === "landuse" ? "#d3ecc7" : "#e8e6df";
+      context.fillStyle = feature.layer === "water" ? this.options.basemapStyle.water : feature.layer === "landuse" ? this.options.basemapStyle.landUse : this.options.basemapStyle.building;
       context.fill("evenodd");
     } else if (feature.type === 2) {
-      context.strokeStyle = feature.kind === "highway" ? "#f6d980" : feature.kind === "major_road" ? "#ffffff" : "#d8d5cd";
+      context.strokeStyle = feature.kind === "highway" ? this.options.basemapStyle.highway : feature.kind === "major_road" ? this.options.basemapStyle.majorRoad : this.options.basemapStyle.road;
       context.lineWidth = feature.kind === "highway" ? 2.4 : feature.kind === "major_road" ? 1.8 : 1;
       context.stroke();
     }

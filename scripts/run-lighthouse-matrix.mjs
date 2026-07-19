@@ -15,7 +15,7 @@ const routes = (process.env.LIGHTHOUSE_ROUTES ?? "/,/embed/,/states/,/vanilla/,/
 const runs = Number(process.env.LIGHTHOUSE_RUNS ?? 3);
 const modes = (process.env.LIGHTHOUSE_MODES ?? "cold,warm").split(",");
 const outputDir = resolve(process.env.LIGHTHOUSE_OUTPUT_DIR ?? "artifacts/lighthouse-v0.3.0");
-const baselinePath = resolve(process.env.LIGHTHOUSE_BASELINE ?? "docs/lighthouse-v0.2-baseline.json");
+const baselinePath = resolve(process.env.LIGHTHOUSE_BASELINE ?? "docs/lighthouse-accepted-baseline.json");
 rmSync(outputDir, { recursive: true, force: true }); mkdirSync(outputDir, { recursive: true });
 const profiles = {
   mobile: { formFactor: "mobile", screenEmulation: { mobile: true, width: 412, height: 823, deviceScaleFactor: 1.75, disabled: false } },
@@ -69,12 +69,12 @@ for (const mode of modes) {
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
 const failures = [];
 for (const [mode, matrix] of Object.entries(matrices)) for (const row of matrix) {
-  if (row.medians.performance < .98) failures.push(`${mode} ${row.route} ${row.profile}: median performance ${row.medians.performance}`);
-  if (row.minimumPerformance < .95) failures.push(`${mode} ${row.route} ${row.profile}: minimum performance ${row.minimumPerformance}`);
-  for (const id of categories.slice(1)) if (row.medians[id] !== 1) failures.push(`${mode} ${row.route} ${row.profile}: median ${id} ${row.medians[id]}`);
-  const accepted = baseline.matrix.find((candidate) => candidate.route === row.route && candidate.profile === row.profile);
-  if (!accepted) failures.push(`Missing v0.2 baseline for ${row.route} ${row.profile}`);
-  else for (const id of categories) if (row.medians[id] < accepted.medians[id]) failures.push(`${mode} ${row.route} ${row.profile}: ${id} regressed below accepted v0.2 median`);
+  if (row.minimumPerformance < .96) failures.push(`${mode} ${row.route} ${row.profile}: minimum performance ${row.minimumPerformance}`);
+  if ((row.profile === "mobile" || row.profile === "ipad") && row.medians.performance !== 1) failures.push(`${mode} ${row.route} ${row.profile}: median performance must remain 1`);
+  for (const measured of rows.filter((candidate) => candidate.mode === mode && candidate.route === row.route && candidate.profile === row.profile)) for (const id of categories.slice(1)) if (measured.scores[id] !== 1) failures.push(`${mode} ${row.route} ${row.profile} run ${measured.run}: ${id} must be 1`);
+  const accepted = baseline.matrix.find((entry) => entry.route === row.route && entry.profile === row.profile);
+  if (!accepted) failures.push(`Missing accepted baseline for ${row.route} ${row.profile}`);
+  else for (const id of categories) if (row.medians[id] < accepted.medians[id]) failures.push(`${mode} ${row.route} ${row.profile}: ${id} regressed below accepted baseline`);
 }
 
 const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };

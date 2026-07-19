@@ -41,7 +41,7 @@ export function createDemoDataset(size: 250 | 5000): FreeMapDataset {
       priceLabel: "$".repeat(index % 3 + 1),
       ...(group ? { branchLabel: `Branch ${index % 3 + 1}` } : {}),
       detailsUrl: `/demo/place/${index + 1}`,
-      metadata: { fictional: true, generatedIndex: index },
+      metadata: { fictional: true, generatedIndex: index, openNow: index % 3 !== 0, topRated: index % 13 !== 0 && index % 5 === 0 },
     });
   }
   return { schemaVersion: 1, id: `fictional-melbourne-${size}`, label: `Fictional Melbourne · ${size.toLocaleString()} places`, center: { lat: -37.8136, lng: 144.9631 }, defaultZoom: 12, validBounds: [143.8, -38.8, 146.3, -37.1], categories, points };

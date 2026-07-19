@@ -35,6 +35,13 @@ export interface FreeMapPoint {
 }
 
 export type FreeMapSort = "ranking" | "name" | "score";
+export type FreeMapLayout = "responsive" | "stack";
+
+export interface FreeMapQuickFilter {
+  id: string;
+  label: string;
+  matches(point: FreeMapPoint, dataset: FreeMapDataset): boolean;
+}
 
 export interface FreeMapLabels {
   explorerTitle?: string;
@@ -57,6 +64,8 @@ export interface FreeMapElementOptions {
   detailLinkBuilder?: (point: FreeMapPoint) => string | undefined;
   externalMapLinkBuilder?: (point: FreeMapPoint) => string | undefined;
   validPoint?: (point: FreeMapPoint, dataset: FreeMapDataset) => boolean;
+  quickFilters?: FreeMapQuickFilter[];
+  searchArea?: boolean;
 }
 
 export interface RenderablePoint {
@@ -74,8 +83,21 @@ export interface MapRendererState {
   options: FreeMapElementOptions;
 }
 
+export type MapViewportCause = "user" | "programmatic";
+
+export interface MapViewportDetail {
+  bounds: [west: number, south: number, east: number, north: number];
+  center: { lat: number; lng: number };
+  zoom: number;
+  cause: MapViewportCause;
+}
+
+export interface MapRendererMountOptions {
+  onViewportChange?: (detail: MapViewportDetail) => void;
+}
+
 export interface MapRenderer {
-  mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void): void | Promise<void>;
+  mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void, options?: MapRendererMountOptions): void | Promise<void>;
   update(state: MapRendererState): void | Promise<void>;
   fitBounds(bounds: [west: number, south: number, east: number, north: number]): void;
   resetView(): void;
@@ -92,3 +114,13 @@ export interface FreeMapErrorDetail {
   cause?: unknown;
   retryable: boolean;
 }
+
+export interface FreeMapFilterChangeDetail {
+  query: string;
+  category: string;
+  sort: FreeMapSort;
+  filters: string[];
+  count: number;
+}
+
+export type FreeMapSearchAreaDetail = MapViewportDetail;

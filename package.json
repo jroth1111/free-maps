@@ -4,7 +4,6 @@
   "description": "Framework-neutral MapLibre explorer components with Cloudflare PMTiles helpers",
   "type": "module",
   "license": "MIT",
-  "author": "Jacob Roth",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jroth1111/free-maps.git"
@@ -55,6 +54,9 @@
     },
     "./themes/atlas.css": "./dist/themes/atlas.css",
     "./themes/atlas-dark.css": "./dist/themes/atlas-dark.css",
+    "./themes/signal.css": "./dist/themes/signal.css",
+    "./themes/signal-dark.css": "./dist/themes/signal-dark.css",
+    "./themes/contrast.css": "./dist/themes/contrast.css",
     "./package.json": "./package.json"
   },
   "peerDependencies": {

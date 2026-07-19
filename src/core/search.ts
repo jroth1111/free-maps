@@ -1,4 +1,4 @@
-import type { FreeMapCategory, FreeMapPoint, FreeMapSort } from "./types";
+import type { FreeMapCategory, FreeMapDataset, FreeMapPoint, FreeMapQuickFilter, FreeMapSort } from "./types";
 
 export const normalizeSearchText = (value: string): string => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -38,10 +38,28 @@ const nullableDesc = (a: number | null | undefined, b: number | null | undefined
   return b! - a!;
 };
 
-export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking"): FreeMapPoint[] {
+export function normalizeQuickFilters(filters: FreeMapQuickFilter[] = []): FreeMapQuickFilter[] {
+  const seen = new Set<string>();
+  return filters.filter((filter) => {
+    const id = filter.id.trim();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export function normalizeActiveFilters(active: readonly string[] = [], filters: readonly FreeMapQuickFilter[] = []): string[] {
+  const declared = new Set(filters.map((filter) => filter.id));
+  const activeSet = new Set(active);
+  return filters.flatMap((filter) => declared.has(filter.id) && activeSet.has(filter.id) ? [filter.id] : []);
+}
+
+export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking", dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
   const q = normalizeSearchText(query);
   const members = category === "all" ? null : resolveCategoryMembers(categories, category);
-  const rows = indexed.filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))));
+  const active = new Set(activeFilters);
+  const predicates = quickFilters.filter((filter) => active.has(filter.id));
+  const rows = indexed.filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))) && (!dataset || predicates.every((filter) => filter.matches(point, dataset))));
   rows.sort((left, right) => {
     const a = left.point;
     const b = right.point;

@@ -1,0 +1,57 @@
+:where(.free-map-theme-contrast) {
+  color-scheme: dark;
+  --free-map-font-family: system-ui, sans-serif;
+  --free-map-heading-font-family: var(--free-map-font-family);
+  --free-map-surface-canvas: #000000;
+  --free-map-surface: #000000;
+  --free-map-surface-muted: #000000;
+  --free-map-surface-elevated: #000000;
+  --free-map-surface-selected: #262200;
+  --free-map-accent-soft: #262200;
+  --free-map-sheet-surface: #000000;
+  --free-map-sheet-handle: #ffffff;
+  --free-map-text: #ffffff;
+  --free-map-text-muted: #ffffff;
+  --free-map-border-color: #ffffff;
+  --free-map-accent: #ffdf00;
+  --free-map-accent-hover: #fff176;
+  --free-map-on-accent: #000000;
+  --free-map-focus: #00ffff;
+  --free-map-control-surface: #000000;
+  --free-map-control-text: #ffffff;
+  --free-map-control-border: #ffffff;
+  --free-map-marker: #ffdf00;
+  --free-map-marker-selected: #00ffff;
+  --free-map-marker-stroke: #000000;
+  --free-map-cluster: #ffdf00;
+  --free-map-cluster-medium: #00ffff;
+  --free-map-cluster-large: #ffffff;
+  --free-map-cluster-text: #000000;
+  --free-map-radius-small: 0;
+  --free-map-radius: 0;
+  --free-map-radius-pill: 0;
+  --free-map-shadow-control: 0 0 0 2px #ffffff;
+  --free-map-shadow-panel: 0 0 0 2px #ffffff;
+}
+
+@media (forced-colors: active) {
+  :where(.free-map-theme-contrast) {
+    --free-map-surface-canvas: Canvas;
+    --free-map-surface: Canvas;
+    --free-map-surface-muted: Canvas;
+    --free-map-surface-elevated: Canvas;
+    --free-map-surface-selected: Highlight;
+    --free-map-accent-soft: Highlight;
+    --free-map-sheet-surface: Canvas;
+    --free-map-sheet-handle: CanvasText;
+    --free-map-text: CanvasText;
+    --free-map-text-muted: CanvasText;
+    --free-map-border-color: CanvasText;
+    --free-map-accent: Highlight;
+    --free-map-on-accent: HighlightText;
+    --free-map-focus: Highlight;
+    --free-map-control-surface: ButtonFace;
+    --free-map-control-text: ButtonText;
+    --free-map-control-border: ButtonText;
+  }
+}
