@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapRendererState } from "../../src/core";
 import { clearSharedTileSessionsForTests } from "../../src/maplibre/session";
 import { VectorCanvasRenderer } from "../../src/vector";
-import { dataset } from "./core.test";
+import { dataset } from "./fixtures";
 
 const state: MapRendererState = {
   dataset,
