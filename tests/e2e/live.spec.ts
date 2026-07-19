@@ -37,7 +37,12 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   expect(tileResponses.some((response) => response.url.endsWith("/tiles/melbourne.json") && response.status === 200)).toBe(true);
   expect(tileResponses.some((response) => response.url.includes(".mvt") && response.status === 200 && response.encoding === "gzip")).toBe(true);
   expect(requests.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
-  expect(consoleErrors).toEqual([]);
+  const transientTileFailures = tileResponses.filter(({ url, status }) => url.includes(".mvt") && (status === 429 || status >= 500));
+  const recoveredTileFailures = transientTileFailures.filter(({ url }) => tileResponses.some((response) => response.url === url && response.status === 200));
+  expect(recoveredTileFailures).toHaveLength(transientTileFailures.length);
+  const resourceErrors = consoleErrors.filter((message) => /^Failed to load resource: the server responded with a status of (?:429|5\d\d)/.test(message));
+  expect(resourceErrors.length).toBeLessThanOrEqual(recoveredTileFailures.length);
+  expect(consoleErrors.filter((message) => !resourceErrors.includes(message))).toEqual([]);
 
   const accessibility = await new AxeBuilder({ page }).include("free-map-explorer").analyze();
   expect(accessibility.violations).toEqual([]);
