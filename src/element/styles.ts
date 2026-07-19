@@ -75,9 +75,9 @@ export const structuralStyles = css`
   .filter-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
   .filter-chips button { background: var(--free-map-control-surface); border: 1px solid var(--free-map-control-border); border-radius: var(--free-map-radius-pill); cursor: pointer; font-size: .8rem; font-weight: 700; min-height: 36px; padding: .4rem .75rem; }
   .filter-chips button[aria-pressed="true"] { background: var(--free-map-accent-soft); border-color: var(--free-map-accent); color: var(--free-map-accent); }
-  .results { min-height: 0; overflow-y: auto; position: relative; scrollbar-gutter: stable; background: var(--free-map-surface); }
-  .virtual { position: relative; width: 100%; }
-  .row { align-items: stretch; display: flex; height: 88px; left: 0; position: absolute; right: 0; border-bottom: 1px solid var(--free-map-border-color); }
+  .results { background: var(--free-map-surface); contain: strict; min-height: 0; overflow-y: auto; position: relative; scrollbar-gutter: stable; }
+  .virtual { contain: layout style; position: relative; width: 100%; }
+  .row { align-items: stretch; border-bottom: 1px solid var(--free-map-border-color); contain: layout paint style; display: flex; height: 88px; left: 0; position: absolute; right: 0; }
   .row button { width: 100%; border: 0; border-left: 4px solid transparent; background: transparent; cursor: pointer; padding: .8rem 1rem; text-align: left; }
   .row button:hover { background: var(--free-map-surface-muted); }
   .row button[aria-current="true"] { border-left-color: var(--free-map-accent); background: var(--free-map-surface-selected); }
