@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 // a TypeScript loader in release environments.
 // @ts-expect-error runtime-only JavaScript module
 import { profiles, validateLighthouseProfiles } from "../../scripts/lighthouse-profiles.mjs";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 describe("Lighthouse profiles", () => {
   it("pins the effective mobile, iPad, and desktop settings", () => {
@@ -24,5 +26,10 @@ describe("Lighthouse profiles", () => {
     invalid.desktop.emulatedUserAgent = profiles.mobile.emulatedUserAgent;
     expect(() => validateLighthouseProfiles(invalid)).toThrow(/desktop: throttling\.rttMs must be 40/);
     expect(() => validateLighthouseProfiles(invalid)).toThrow(/desktop: user agent does not match/);
+  });
+
+  it("bypasses stale outer HTML cache entries during version-override audits", () => {
+    const runner = readFileSync(resolve("scripts/run-lighthouse-matrix.mjs"), "utf8");
+    expect(runner).toContain('"Cache-Control": "no-cache"');
   });
 });

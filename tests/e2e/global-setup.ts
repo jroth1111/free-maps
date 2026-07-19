@@ -13,7 +13,7 @@ export default async function waitForVersionOverride(): Promise<void> {
   const missing = routes.map(routeFile).filter((file) => !existsSync(file));
   if (missing.length) throw new Error(`Build the demo before deployed version verification; missing ${missing.join(", ")}`);
   const expected = new Map(routes.map((route) => [route, readFileSync(routeFile(route), "utf8")]));
-  const headers = { "Cloudflare-Workers-Version-Overrides": `free-maps="${version}"` };
+  const headers = { "Cloudflare-Workers-Version-Overrides": `free-maps="${version}"`, "Cache-Control": "no-cache" };
   let consecutiveReadyRounds = 0;
   let lastFailure = "candidate did not respond";
 

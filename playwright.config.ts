@@ -4,7 +4,7 @@ const liveBaseURL = process.env.LIVE_BASE_URL;
 const baseURL = liveBaseURL ?? "http://127.0.0.1:4173";
 const workerVersionOverrideId = process.env.WORKER_VERSION_OVERRIDE_ID;
 const extraHTTPHeaders = workerVersionOverrideId
-  ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"` }
+  ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"`, "Cache-Control": "no-cache" }
   : undefined;
 
 export default defineConfig({

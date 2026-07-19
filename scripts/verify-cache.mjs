@@ -18,6 +18,7 @@ const withVersionOverride = (init = {}) => {
   if (!versionOverrideId) return init;
   const headers = new globalThis.Headers(init.headers);
   headers.set("Cloudflare-Workers-Version-Overrides", `free-maps="${versionOverrideId}"`);
+  headers.set("Cache-Control", "no-cache");
   return { ...init, headers };
 };
 const capture = async (name, path, init) => {

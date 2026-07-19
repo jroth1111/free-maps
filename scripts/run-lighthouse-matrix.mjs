@@ -8,7 +8,7 @@ const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? process.env.LIVE_BASE_URL;
 if (!baseUrl) throw new Error("Set LIGHTHOUSE_BASE_URL to the deployed origin");
 const workerVersionOverrideId = process.env.WORKER_VERSION_OVERRIDE_ID;
 const extraHeaders = workerVersionOverrideId
-  ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"` }
+  ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"`, "Cache-Control": "no-cache" }
   : undefined;
 const chromePath = process.env.CHROME_PATH;
 if (!chromePath) throw new Error("Set CHROME_PATH to Chrome for Testing 151.0.7922.34");
