@@ -1,11 +1,12 @@
 # Changelog
 
-## 0.3.0
+## 0.3.0 — unreleased candidate
 
 - Neutral structural element CSS, published `--free-map-*` tokens and stable parts, plus opt-in heritage light/dark themes.
 - Explicit MapLibre worker/style configuration and exact-origin/path tile authorization with shared expiring sessions.
 - Configurable, versioned PMTiles Cache API entries with auth-before-cache, negative caching, miss coalescing, private client copies, and diagnostics.
-- Workers Cache, fingerprinted demo assets, concurrent activation resources, first-paint scheduling, memoized updates, and 90-report cold/warm Lighthouse gates.
+- Workers Cache, fingerprinted demo assets, concurrent activation resources, first-paint scheduling, memoized updates, and a 90-report cold/warm Lighthouse gate.
+- Stable progressive-enhancement geometry, unique multi-map landmarks, keyboard/history coverage, and measured renderer-update latency.
 
 ## 0.2.0
 

@@ -68,6 +68,18 @@ describe("element lifecycle", () => {
     expect(element.shadowRoot?.querySelectorAll(".row").length).toBeLessThan(60);
   });
 
+  it("exposes the promised stable parts in ready, loading, and error states", async () => {
+    const ready = elementWith(new FakeRenderer()); ready.data = dataset; document.body.append(ready); await ready.activate(); await settle(ready);
+    for (const part of ["controls", "results", "result-row", "map", "status"]) expect(ready.shadowRoot?.querySelector(`[part~="${part}"]`), part).toBeTruthy();
+
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    const loading = elementWith(new FakeRenderer(), "manual"); loading.src = "/pending.json"; document.body.append(loading); await settle(loading);
+    expect(loading.shadowRoot?.querySelector('[part~="status"]')).toBeTruthy();
+
+    const invalid = elementWith(new FakeRenderer(), "manual"); invalid.data = { ...dataset, schemaVersion: 2 } as unknown as FreeMapDataset; document.body.append(invalid); await settle(invalid);
+    expect(invalid.shadowRoot?.querySelector('[part~="errors"]')).toBeTruthy();
+  });
+
   it("coalesces same-turn renderer updates", async () => {
     const renderer = new FakeRenderer(); const element = elementWith(renderer); element.data = dataset; document.body.append(element); await element.activate(); await settle(element);
     const before = renderer.updates;

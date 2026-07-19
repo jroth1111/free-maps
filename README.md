@@ -80,6 +80,8 @@ Published tokens:
 
 Virtual-row heights and layout-critical dimensions are private. Stable styling hooks are `::part(controls)`, `::part(results)`, `::part(result-row)`, `::part(map)`, `::part(status)`, and `::part(errors)`. Additional parts may exist but are not part of this stability promise.
 
+When a page contains multiple explorers, give each host a distinct `aria-label`; the element prefixes its map and results landmark names with that label.
+
 Map marker and MapLibre control colors are resolved from these tokens once at renderer mount. Select the theme and set overrides before activation.
 
 ## React
@@ -132,6 +134,20 @@ The static MPA routes are `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, an
 
 MapLibre is not requested before stable paint and activation eligibility. Compatible maps share style and expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
 
+### Current Lighthouse results
+
+The most recent complete local diagnostic matrix (2026-07-19) contains 90 Lighthouse 13.4.0 reports: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **96 to 100**, the lowest individual run is **95**, and **27 of 30** route/profile/cache rows meet the ≥98 median floor. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in every row**.
+
+| Route | Cold Performance medians | Warm Performance medians |
+| --- | --- | --- |
+| `/` | 98–100 | 98–99 |
+| `/embed/` | 97–100 | 96–99 |
+| `/states/` | 99–100 | 100 |
+| `/vanilla/` | 98–100 | 99 |
+| `/react/` | 98–100 | 98–99 |
+
+These local results are diagnostic, not release acceptance. The latest pinned `ubuntu-24.04` release canary scored **65–66 median Performance on automatic real-map routes** and **96 on `/states/`**, with all non-performance categories at 100. v0.3.0 therefore remains an unreleased candidate and production remains on v0.2.0. See [the full candidate evidence](docs/RELEASE_NOTES_v0.3.0.md).
+
 See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/UI_VERIFICATION.md](docs/UI_VERIFICATION.md).
 
 ## Development
@@ -143,4 +159,4 @@ npm run test:e2e
 CACHE_BASE_URL=http://127.0.0.1:4173 npm run cache:verify
 ```
 
-The release matrix uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34 on serial `ubuntu-24.04`: three cold and three primed warm runs for five routes across three profiles, producing 90 JSON and 90 HTML reports.
+The release matrix uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34 on serial `ubuntu-24.04`: three cold and three primed warm runs for five routes across three profiles, producing 90 JSON and 90 HTML reports when the canary clears the early hard gate.

@@ -2,6 +2,8 @@ import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { calculateBounds, parseFreeMapDataset, type FreeMapActivation, type FreeMapDataset, type FreeMapErrorDetail, type MapRenderer, type MapRendererFactory, type MapRendererState } from "../core";
 import { mapMountScheduler } from "./scheduler";
 
+const markRendererUpdate = (): void => { performance.mark?.("free-maps:renderer-update"); };
+
 type RuntimeHost = ReactiveControllerHost & HTMLElement & {
   activation: FreeMapActivation;
   renderer: MapRendererFactory | null;
@@ -168,7 +170,10 @@ export class FreeMapRuntimeController implements ReactiveController {
         await this.mountPromise;
         const latest = this.pendingState;
         this.pendingState = undefined;
-        if (latest && latest !== state) await this.rendererInstance?.update(latest);
+        if (latest && latest !== state) {
+          await this.rendererInstance?.update(latest);
+          markRendererUpdate();
+        }
       } catch { this.disposeRenderer(); }
       return;
     }
@@ -178,7 +183,10 @@ export class FreeMapRuntimeController implements ReactiveController {
           await this.mountPromise;
           const latest = this.pendingState;
           this.pendingState = undefined;
-          if (latest && this.connected) await this.rendererInstance?.update(latest);
+          if (latest && this.connected) {
+            await this.rendererInstance?.update(latest);
+            markRendererUpdate();
+          }
         } catch (cause) {
           if (!this.mountAbort.signal.aborted && this.connected) this.report("renderer-runtime", cause, true);
           this.disposeRenderer();

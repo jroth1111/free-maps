@@ -9,8 +9,15 @@ const prepare = async (page: Page) => {
     authorization: Array<{ url: string; value: string }>;
   } = { urls: [], authorization: [] };
   await page.addInitScript(() => {
-    (window as typeof window & { __freeMapsCls?: number }).__freeMapsCls = 0;
+    const measuredWindow = window as typeof window & { __freeMapsCls?: number; __freeMapsInitialGeometry?: { top: number; width: number; height: number } };
+    measuredWindow.__freeMapsCls = 0;
     new PerformanceObserver((list) => { for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) if (!entry.hadRecentInput) (window as typeof window & { __freeMapsCls: number }).__freeMapsCls += entry.value; }).observe({ type: "layout-shift", buffered: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      const target = document.querySelector("free-map-explorer, #react-root");
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      measuredWindow.__freeMapsInitialGeometry = { top: rect.top, width: rect.width, height: rect.height };
+    }, { once: true });
   });
   page.on("request", (request) => {
     requests.urls.push(request.url());
@@ -33,10 +40,20 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(route === "/" ? "/$" : `${route.replaceAll("/", "\\/")}$`));
     const footer = page.locator("footer"); await expect(footer).toContainText("MapLibre GL JS"); await expect(footer).toContainText("No Google Maps components or requests are involved.");
     await page.waitForTimeout(500);
-    const shifts = await page.evaluate(() => (window as typeof window & { __freeMapsCls?: number }).__freeMapsCls ?? 0);
-    expect(shifts).toBeLessThanOrEqual(0.01);
+    const geometry = await page.evaluate(() => {
+      const measuredWindow = window as typeof window & { __freeMapsCls?: number; __freeMapsInitialGeometry?: { top: number; width: number; height: number } };
+      const target = document.querySelector("free-map-explorer, #react-root")!;
+      const rect = target.getBoundingClientRect();
+      return { shifts: measuredWindow.__freeMapsCls ?? 0, initial: measuredWindow.__freeMapsInitialGeometry, current: { top: rect.top, width: rect.width, height: rect.height } };
+    });
+    expect(geometry.shifts).toBeLessThanOrEqual(0.01);
+    expect(geometry.initial).toBeTruthy();
+    expect(Math.abs(geometry.current.top - geometry.initial!.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.current.width - geometry.initial!.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.current.height - geometry.initial!.height)).toBeLessThanOrEqual(1);
     expect(requests.urls.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
     if (route !== "/react/") expect(requests.urls.some((url) => /\/assets\/react-[^/]+\.js/.test(url))).toBe(false);
+    const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
   });
 }
 
@@ -63,8 +80,14 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const before = await canvas.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
   const box = await canvas.boundingBox(); expect(box).toBeTruthy(); await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.waitForTimeout(400);
   const after = await canvas.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
+  const initialPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
+  const keyboardResult = explorer.locator(".row button").nth(1); await keyboardResult.focus(); await page.keyboard.press("Enter");
+  const keyboardPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
+  expect(keyboardPoint).toBeTruthy(); expect(keyboardPoint).not.toBe(initialPoint); await expect(page).toHaveURL(new RegExp(`point=${keyboardPoint}`));
+  await page.goBack(); await expect.poll(() => explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId)).toBe(initialPoint);
   const search = explorer.locator("input[type=search]"); await search.focus(); await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.type("Paper Crane"); await expect(page).toHaveURL(/q=Paper(?:\+|%20)Crane/);
-  await page.keyboard.press("Tab"); expect(await page.evaluate(() => document.activeElement?.tagName)).toBeTruthy();
+  await page.keyboard.press("Tab"); expect(await explorer.evaluate((element) => element.shadowRoot?.activeElement?.getAttribute("part"))).toBe("category-select");
+  await page.keyboard.press("Tab"); expect(await explorer.evaluate((element) => element.shadowRoot?.activeElement?.getAttribute("part"))).toBe("sort-select");
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
   expect(requests.urls.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
   expect(requests.authorization.length).toBeGreaterThan(0);
@@ -107,10 +130,17 @@ test("stress route keeps 5,000 points virtualized and updates within budget", as
     const timings: number[] = [];
     for (let run = 0; run < 30; run++) {
       const start = performance.now();
-      await new Promise<void>((resolve) => {
-        element.addEventListener("free-map-filter-change", () => requestAnimationFrame(() => resolve()), { once: true });
-        input.value = run % 2 ? `Lantern ${run}` : "Lantern";
-        input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
+      performance.clearMarks("free-maps:renderer-update");
+      input.value = run % 2 ? `Lantern ${run}` : "Lantern";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
+      await new Promise<void>((resolve, reject) => {
+        const check = () => {
+          const update = performance.getEntriesByName("free-maps:renderer-update", "mark").at(-1);
+          if (update && update.startTime >= start) { resolve(); return; }
+          if (performance.now() - start > 2_000) { reject(new Error("renderer update mark timed out")); return; }
+          requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
       });
       timings.push(performance.now() - start);
     }
