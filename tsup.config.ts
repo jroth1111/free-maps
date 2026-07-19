@@ -5,6 +5,7 @@ export default defineConfig({
     core: "src/core/index.ts",
     element: "src/element/index.ts",
     maplibre: "src/maplibre/index.ts",
+    vector: "src/vector/index.ts",
     react: "src/react/index.tsx",
     cloudflare: "src/cloudflare/index.ts",
   },

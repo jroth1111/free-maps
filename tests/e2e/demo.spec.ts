@@ -8,6 +8,7 @@ const prepare = async (page: Page) => {
     urls: string[];
     authorization: Array<{ url: string; value: string }>;
   } = { urls: [], authorization: [] };
+  page.on("pageerror", (error) => console.error(`Browser page error: ${error.stack ?? error.message}`));
   await page.addInitScript(() => {
     const measuredWindow = window as typeof window & { __freeMapsCls?: number; __freeMapsInitialGeometry?: { top: number; width: number; height: number } };
     measuredWindow.__freeMapsCls = 0;
@@ -38,7 +39,7 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
     await page.goto(route);
     await expect(page.locator("h1")).toBeVisible();
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(route === "/" ? "/$" : `${route.replaceAll("/", "\\/")}$`));
-    const footer = page.locator("footer"); await expect(footer).toContainText("MapLibre GL JS"); await expect(footer).toContainText("No Google Maps components or requests are involved.");
+    const footer = page.locator("footer"); await expect(footer).toContainText("Free Maps vector canvas"); await expect(footer).toContainText("MapLibre adapter available"); await expect(footer).toContainText("No Google Maps components or requests are involved.");
     await page.waitForTimeout(500);
     const geometry = await page.evaluate(() => {
       const measuredWindow = window as typeof window & { __freeMapsCls?: number; __freeMapsInitialGeometry?: { top: number; width: number; height: number } };
@@ -58,9 +59,11 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
 }
 
 for (const route of ["/embed/", "/vanilla/", "/react/"]) {
-  test(`${route} activates a real MapLibre canvas automatically`, async ({ page }) => {
+  test(`${route} activates a real vector-tile canvas automatically`, async ({ page }) => {
     const requests = await prepare(page); await page.goto(route);
-    await expect(page.locator("free-map-explorer canvas").first()).toBeVisible({ timeout: 30_000 });
+    const canvas = page.locator("free-map-explorer canvas").first();
+    await expect(canvas).toBeVisible({ timeout: 30_000 });
+    await expect(canvas).toHaveAttribute("data-tiles-painted", "true");
     if (route === "/embed/") {
       const tileJsonRequests = () => requests.authorization.filter(({ url }) => new URL(url).pathname === "/tiles/melbourne.json").length;
       await expect.poll(tileJsonRequests).toBe(1);
@@ -96,10 +99,11 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const timing = await page.evaluate(() => {
     const stable = Number(document.documentElement.dataset.stablePaint);
     const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-    return { stable, mapStarts: resources.filter((entry) => /maplibre|atlas-light|tile-session|\/tiles\//i.test(entry.name)).map((entry) => entry.startTime) };
+    return { stable, mapStarts: resources.filter((entry) => /vector|tile-session|\/tiles\//i.test(entry.name)).map((entry) => entry.startTime), mapLibre: resources.filter((entry) => /maplibre/i.test(entry.name)).map((entry) => entry.name) };
   });
   expect(timing.stable).toBeGreaterThan(0);
   expect(timing.mapStarts.every((start) => start >= timing.stable)).toBe(true);
+  expect(timing.mapLibre).toEqual([]);
   const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
 });
 
