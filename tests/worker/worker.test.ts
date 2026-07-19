@@ -18,6 +18,39 @@ describe("tile sessions", () => {
 });
 
 describe("Worker endpoints", () => {
+  it("delegates only validated public dataset reads to the cached entrypoint", async () => {
+    let datasetCalls = 0;
+    const gatewayContext = {
+      waitUntil() {},
+      exports: {
+        Dataset: {
+          async fetch() {
+            datasetCalls++;
+            return new Response("cached dataset entrypoint");
+          },
+        },
+      },
+    } as unknown as Parameters<typeof worker.fetch>[2];
+
+    const validGet = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, gatewayContext);
+    expect(validGet.status).toBe(200);
+    expect(await validGet.text()).toBe("cached dataset entrypoint");
+    expect(datasetCalls).toBe(1);
+
+    const validHead = await worker.fetch(request("/api/v1/demo-dataset?size=5000", { method: "HEAD" }), env as unknown as Env, gatewayContext);
+    expect(validHead.status).toBe(200);
+    expect(datasetCalls).toBe(2);
+
+    const invalidSize = await worker.fetch(request("/api/v1/demo-dataset?size=7"), env as unknown as Env, gatewayContext);
+    expect(invalidSize.status).toBe(400);
+    expect(invalidSize.headers.get("cache-control")).toBe("no-store");
+
+    const invalidMethod = await worker.fetch(request("/api/v1/demo-dataset?size=250", { method: "POST" }), env as unknown as Env, gatewayContext);
+    expect(invalidMethod.status).toBe(405);
+    expect(invalidMethod.headers.get("cache-control")).toBe("no-store");
+    expect(datasetCalls).toBe(2);
+  });
+
   it("serves health, deterministic datasets, methods and ETags", async () => {
     await env.BASEMAP.put("basemaps/greater-melbourne-20260717.pmtiles", fixture);
     const context = createExecutionContext();

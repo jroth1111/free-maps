@@ -1,3 +1,4 @@
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { bearerToken, handlePmtilesRequest, issueTileSession, verifyTileSession } from "../src/cloudflare";
 import type { AssetFetcherLike, ExecutionContextLike, R2BucketLike } from "../src/cloudflare";
 import { createDemoDataset } from "./dataset";
@@ -55,8 +56,33 @@ const allowedTileOrigin = (request: Request, env: Env) => {
 };
 const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", "), "Cache-Control": "no-store" } });
 
+const datasetResponse = (request: Request, env: Env): Response => {
+  const url = new URL(request.url);
+  const size = Number(url.searchParams.get("size") ?? "250") as 250 | 5000;
+  const etag = `W/"demo-${env.APP_VERSION}-${size}"`;
+  const cacheHeaders = {
+    ETag: etag,
+    "Cache-Control": "public, max-age=300",
+    "Cloudflare-CDN-Cache-Control": "public, max-age=3600, stale-while-revalidate=1800",
+    "Cache-Tag": `free-maps-dataset,free-maps-dataset-${env.APP_VERSION}`,
+    "Access-Control-Allow-Origin": "*",
+    "X-Free-Maps-Invocation": crypto.randomUUID(),
+  };
+  if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: cacheHeaders });
+  return headless(request, json(createDemoDataset(size), { headers: cacheHeaders }));
+};
+
+/** The only cached entrypoint; the default export remains an uncached gateway. */
+export class Dataset extends WorkerEntrypoint<Env> {
+  fetch(request: Request): Response { return datasetResponse(request, this.env); }
+}
+
+interface GatewayExecutionContext extends ExecutionContextLike {
+  exports: { Dataset: { fetch(request: Request): Promise<Response> } };
+}
+
 export default {
-  async fetch(request: Request, env: Env, context: ExecutionContextLike): Promise<Response> {
+  async fetch(request: Request, env: Env, context: GatewayExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api/health") {
       const rejected = methodAllowed(request, ["GET", "HEAD"]); if (rejected) return rejected;
@@ -68,11 +94,7 @@ export default {
       const rejected = methodAllowed(request, ["GET", "HEAD"]); if (rejected) return rejected;
       const rawSize = url.searchParams.get("size") ?? "250";
       if (rawSize !== "250" && rawSize !== "5000") return json({ error: "size must be 250 or 5000" }, { status: 400 });
-      const size = Number(rawSize) as 250 | 5000;
-      const etag = `W/"demo-${env.APP_VERSION}-${size}"`;
-      const cacheHeaders = { ETag: etag, "Cache-Control": "public, max-age=300", "Cloudflare-CDN-Cache-Control": "public, max-age=3600, stale-while-revalidate=1800", "Access-Control-Allow-Origin": "*", "X-Free-Maps-Invocation": crypto.randomUUID() };
-      if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: cacheHeaders });
-      return headless(request, json(createDemoDataset(size), { headers: cacheHeaders }));
+      return context.exports.Dataset.fetch(request);
     }
     if (url.pathname === "/api/tile-session") {
       const rejected = methodAllowed(request, ["POST"]); if (rejected) return rejected;
