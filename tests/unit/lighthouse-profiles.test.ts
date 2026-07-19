@@ -32,4 +32,13 @@ describe("Lighthouse profiles", () => {
     const runner = readFileSync(resolve("scripts/run-lighthouse-matrix.mjs"), "utf8");
     expect(runner).toContain('"Cache-Control": "no-cache"');
   });
+
+  it("binds accepted reports to a healthy deployment and exact commit", () => {
+    const runner = readFileSync(resolve("scripts/run-lighthouse-matrix.mjs"), "utf8");
+    expect(runner).toContain('new URL("/api/health", baseUrl)');
+    expect(runner).toContain("LIGHTHOUSE_EXPECTED_COMMIT");
+    expect(runner).toContain("health.commit !== expectedCommit");
+    expect(runner).toContain("health.deployment !== workerVersionOverrideId");
+    expect(runner).toContain("baseUrl: new URL(baseUrl).origin");
+  });
 });

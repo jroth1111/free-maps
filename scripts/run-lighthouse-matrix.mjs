@@ -7,6 +7,7 @@ import { profiles } from "./lighthouse-profiles.mjs";
 const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? process.env.LIVE_BASE_URL;
 if (!baseUrl) throw new Error("Set LIGHTHOUSE_BASE_URL to the deployed origin");
 const workerVersionOverrideId = process.env.WORKER_VERSION_OVERRIDE_ID;
+const expectedCommit = process.env.LIGHTHOUSE_EXPECTED_COMMIT;
 const extraHeaders = workerVersionOverrideId
   ? { "Cloudflare-Workers-Version-Overrides": `free-maps="${workerVersionOverrideId}"`, "Cache-Control": "no-cache" }
   : undefined;
@@ -21,6 +22,13 @@ rmSync(outputDir, { recursive: true, force: true }); mkdirSync(outputDir, { recu
 const selectedProfiles = (process.env.LIGHTHOUSE_PROFILES ?? Object.keys(profiles).join(",")).split(",");
 const categories = ["performance", "accessibility", "best-practices", "seo", "agentic-browsing"];
 const rows = [];
+
+const healthResponse = await fetch(new URL("/api/health", baseUrl), { headers: extraHeaders });
+if (!healthResponse.ok) throw new Error(`Lighthouse preflight failed: /api/health returned ${healthResponse.status}`);
+const health = await healthResponse.json();
+if (!health?.ok || !health?.basemap?.ready) throw new Error("Lighthouse preflight failed: deployed basemap is not ready");
+if (expectedCommit && health.commit !== expectedCommit) throw new Error(`Lighthouse preflight commit mismatch: expected ${expectedCommit}, received ${health.commit ?? "missing"}`);
+if (workerVersionOverrideId && health.deployment !== workerVersionOverrideId) throw new Error(`Lighthouse preflight version mismatch: expected ${workerVersionOverrideId}, received ${health.deployment ?? "missing"}`);
 
 const flagsFor = (port, settings, output, disableStorageReset = false) => ({ port, output, logLevel: "error", onlyCategories: categories, throttlingMethod: "simulate", disableStorageReset, extraHeaders, ...settings });
 
@@ -73,10 +81,10 @@ for (const [mode, matrix] of Object.entries(matrices)) for (const row of matrix)
   else for (const id of categories) if (row.medians[id] < accepted.medians[id]) failures.push(`${mode} ${row.route} ${row.profile}: ${id} regressed below accepted baseline`);
 }
 
-const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, effectiveProfiles: Object.fromEntries(selectedProfiles.map((profile) => [profile, profiles[profile]])), expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
+const result = { capturedAt: new Date().toISOString(), baseUrl: new URL(baseUrl).origin, health, expectedCommit: expectedCommit ?? null, chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, effectiveProfiles: Object.fromEntries(selectedProfiles.map((profile) => [profile, profiles[profile]])), expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
 if (rows.length !== result.expectedReports) failures.push(`Expected ${result.expectedReports} measured reports, received ${rows.length}`);
 writeFileSync(resolve(outputDir, "score-matrix.json"), `${JSON.stringify(result, null, 2)}\n`);
 for (const [mode, matrix] of Object.entries(matrices)) {
-  writeFileSync(resolve(outputDir, `score-matrix-${mode}.md`), `# Lighthouse ${mode} score matrix\n\nChrome for Testing 151.0.7922.34; Lighthouse 13.4.0; ${mode} profiles; simulated throttling.\n\n| Route | Profile | Performance median | Performance minimum | Accessibility | Best Practices | SEO | Agentic Browsing |\n|---|---:|---:|---:|---:|---:|---:|---:|\n${matrix.map((row) => `| ${row.route} | ${row.profile} | ${Math.round(row.medians.performance * 100)} | ${Math.round(row.minimumPerformance * 100)} | ${Math.round(row.medians.accessibility * 100)} | ${Math.round(row.medians["best-practices"] * 100)} | ${Math.round(row.medians.seo * 100)} | ${Math.round(row.medians["agentic-browsing"] * 100)} |`).join("\n")}\n`);
+  writeFileSync(resolve(outputDir, `score-matrix-${mode}.md`), `# Lighthouse ${mode} score matrix\n\nOrigin: ${new URL(baseUrl).origin}; deployment: ${health.deployment}; commit: ${health.commit}.\n\nChrome for Testing 151.0.7922.34; Lighthouse 13.4.0; ${mode} profiles; simulated throttling.\n\n| Route | Profile | Performance median | Performance minimum | Accessibility | Best Practices | SEO | Agentic Browsing |\n|---|---:|---:|---:|---:|---:|---:|---:|\n${matrix.map((row) => `| ${row.route} | ${row.profile} | ${Math.round(row.medians.performance * 100)} | ${Math.round(row.minimumPerformance * 100)} | ${Math.round(row.medians.accessibility * 100)} | ${Math.round(row.medians["best-practices"] * 100)} | ${Math.round(row.medians.seo * 100)} | ${Math.round(row.medians["agentic-browsing"] * 100)} |`).join("\n")}\n`);
 }
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
