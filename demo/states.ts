@@ -1,10 +1,5 @@
 import type { FreeMapExplorerElement } from "../src/element";
 import { fetchDataset, options, register } from "./shared";
-import "../src/themes/atlas.css";
-import "../src/themes/atlas-dark.css";
-import "../src/themes/signal.css";
-import "../src/themes/signal-dark.css";
-import "../src/themes/contrast.css";
 
 register();
 for (const element of document.querySelectorAll<FreeMapExplorerElement>("free-map-explorer")) element.options = options;

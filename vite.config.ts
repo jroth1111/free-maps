@@ -6,11 +6,15 @@ const inlineShellCss = {
   name: "inline-shell-css",
   enforce: "post" as const,
   generateBundle(_options: unknown, bundle: Record<string, { type: string; fileName: string; source?: string | Uint8Array }>) {
-    const entry = Object.entries(bundle).find(([, asset]) => asset.type === "asset" && asset.fileName.endsWith(".css") && String(asset.source).includes(".site-header"));
-    if (!entry) return;
-    const [key, cssAsset] = entry; const css = String(cssAsset.source);
-    for (const asset of Object.values(bundle)) if (asset.type === "asset" && asset.fileName.endsWith(".html")) asset.source = String(asset.source).replace(new RegExp(`<link rel="stylesheet"[^>]+href="/${cssAsset.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>`), `<style>${css}</style>`);
-    delete bundle[key];
+    const styles = Object.entries(bundle).filter(([, asset]) => asset.type === "asset" && asset.fileName.endsWith(".css"));
+    const inlined = new Set<string>();
+    for (const asset of Object.values(bundle)) if (asset.type === "asset" && asset.fileName.endsWith(".html")) for (const [key, cssAsset] of styles) {
+      const href = cssAsset.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const before = String(asset.source);
+      asset.source = before.replace(new RegExp(`<link rel="stylesheet"[^>]+href="/${href}"[^>]*>`), `<style>${String(cssAsset.source)}</style>`);
+      if (asset.source !== before) inlined.add(key);
+    }
+    for (const key of inlined) delete bundle[key];
   },
 };
 

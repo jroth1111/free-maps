@@ -1,6 +1,5 @@
 import { openStreetMapUrl, type FreeMapElementOptions, type MapRendererFactory } from "../src/core";
 import { defineFreeMapElements } from "../src/element";
-import "../src/themes/atlas.css";
 
 export const renderer: MapRendererFactory = async () => {
   const { VectorCanvasRenderer, neutralLightBasemap } = await import("../src/vector");

@@ -17,4 +17,18 @@ describe("deployment routing", () => {
       expect(section).not.toContain("Cloudflare-CDN-Cache-Control");
     }
   });
+
+  it("discovers demo themes before route enhancement", () => {
+    const siteCss = readFileSync(resolve("demo/site.css"), "utf8");
+    const statesCss = readFileSync(resolve("demo/states.css"), "utf8");
+    const shared = readFileSync(resolve("demo/shared.ts"), "utf8");
+    const states = readFileSync(resolve("demo/states.ts"), "utf8");
+    const statesHtml = readFileSync(resolve("demo/states/index.html"), "utf8");
+
+    expect(siteCss).toContain('@import "../src/themes/atlas.css"');
+    for (const theme of ["atlas-dark", "signal", "signal-dark", "contrast"]) expect(statesCss).toContain(`@import "../src/themes/${theme}.css"`);
+    expect(statesHtml).toContain('<link rel="stylesheet" href="/states.css">');
+    expect(shared).not.toMatch(/themes\/.*\.css/);
+    expect(states).not.toMatch(/themes\/.*\.css/);
+  });
 });
