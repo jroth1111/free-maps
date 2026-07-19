@@ -24,6 +24,6 @@ v0.3.0 provides a renderer-neutral map explorer with schema-v1 datasets, explici
 - Fewer than 60 mounted result rows, 5,000-point filter/sort p95 below 100 ms, and UI-to-map updates below 200 ms.
 - Browser coverage at 412×823, 768×1024, and 1350×940 includes layout interaction, focus, URL state, filters, viewport actions, clusters, protected tiles, themes, forced colors, axe, CLS, and overflow.
 - Lighthouse 13.4.0 uses five routes, three profiles, and three cold plus three warm runs. Mobile and iPad medians must remain 100; desktop must meet the accepted baseline; no run may fall below 96; every non-Performance category must be 100 in every report.
-- The accepted 2026-07-19 rerun produced 90 reports with no failures: cold mobile/iPad medians 100, cold desktop medians 99, warm medians 100 everywhere, a 99 minimum individual Performance score, and 100 for every non-Performance category in every report.
+- The accepted live-candidate rerun on 2026-07-19 produced 90 reports within the hard gates: cold mobile/iPad medians 100, cold desktop medians 98, warm mobile/iPad medians 100, warm desktop medians 99, a 96 minimum individual Performance score, and 100 for every non-Performance category in every report.
 
 npm registry publication remains deferred.
