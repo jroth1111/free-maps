@@ -48,7 +48,7 @@ const workerTarget = resolve("public/assets/maplibre-gl-csp-worker-v5.24.0.js");
 mkdirSync(dirname(workerTarget), { recursive: true });
 cpSync(workerSource, workerTarget);
 
-const regularGlyphDir = resolve("public/fonts/Noto Sans Regular");
+const regularGlyphDir = resolve("assets/glyphs/Noto Sans Regular");
 if (!readFileSync(resolve(regularGlyphDir, "0-255.pbf")).byteLength) throw new Error("Regular glyph subset is missing");
 cpSync(regularGlyphDir, resolve("public/fonts/v0.3.0/Noto Sans Regular"), { recursive: true });
 console.log(`Generated ${retained.length} validated Atlas light layers, versioned glyphs/sprites, and the CSP worker.`);

@@ -11,7 +11,7 @@ const paths = [
 for (const path of paths) {
   const response = await fetch(`${base}/${path.split("/").map(encodeURIComponent).join("/")}`);
   if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.status}`);
-  const destination = resolve(root, "public", path);
+  const destination = resolve(root, "assets", "glyphs", path.slice("fonts/".length));
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, Buffer.from(await response.arrayBuffer()));
   console.log(path);
