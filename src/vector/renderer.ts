@@ -6,7 +6,7 @@ import { getSharedTileSession, resolveProtectedPrefix, resolveTileHeaders, scope
 const TILE_SIZE = 256;
 const MAX_TILE_ZOOM = 12;
 const DRAW_LAYERS = ["landuse", "water", "buildings", "roads"] as const;
-const FEATURE_LIMITS: Record<(typeof DRAW_LAYERS)[number], number> = { landuse: 180, water: 120, buildings: 450, roads: 420 };
+const FEATURE_LIMITS: Record<(typeof DRAW_LAYERS)[number], number> = { landuse: 50, water: 50, buildings: 100, roads: 200 };
 
 interface TileJson {
   tiles: string[];
@@ -76,7 +76,7 @@ async function decodeTile(buffer: ArrayBuffer, x: number, y: number, z: number):
     const limit = Math.min(layer.length, FEATURE_LIMITS[layerName]);
     for (let index = 0; index < limit; index++) {
       features.push(decodeFeature(layerName, layer.feature(index)));
-      if (++decoded % 120 === 0) await yieldMainThread();
+      if (++decoded % 24 === 0) await yieldMainThread();
     }
   }
   return { x, y, z, features };
@@ -132,7 +132,6 @@ export class VectorCanvasRenderer implements MapRenderer {
     await this.loadVisibleTiles();
     if (this.abort.signal.aborted) throw new DOMException("Map activation was cancelled", "AbortError");
     canvas.dataset.tilesPainted = "true";
-    this.draw();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
 
@@ -286,18 +285,24 @@ export class VectorCanvasRenderer implements MapRenderer {
     const minX = Math.floor((centerX - width / (2 * scale)) / TILE_SIZE); const maxX = Math.floor((centerX + width / (2 * scale)) / TILE_SIZE);
     const minY = Math.floor((centerY - height / (2 * scale)) / TILE_SIZE); const maxY = Math.floor((centerY + height / (2 * scale)) / TILE_SIZE);
     const template = new URL(tileJson.tiles[0]!, tileJsonResponse.url || tileJsonUrl).href.replaceAll("%7B", "{").replaceAll("%7D", "}");
-    const jobs: Array<Promise<DrawTile>> = [];
+    const jobs: Array<Promise<{ buffer?: ArrayBuffer; x: number; y: number; z: number }>> = [];
     for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
       const normalizedX = ((x % 2 ** tileZoom) + 2 ** tileZoom) % 2 ** tileZoom;
       const url = replaceTileTemplate(template, tileZoom, normalizedX, y);
       const headers = prefix && token ? scopedRequestHeaders(url, prefix, token, tileHeaders) : undefined;
       jobs.push(fetch(url, { headers, signal: this.abort.signal }).then(async (response) => {
-        if (response.status === 204) return { x, y, z: tileZoom, features: [] };
+        if (response.status === 204) return { x, y, z: tileZoom };
         if (!response.ok) throw new Error(`Vector tile request failed with ${response.status}`);
-        return decodeTile(await response.arrayBuffer(), x, y, tileZoom);
+        return { buffer: await response.arrayBuffer(), x, y, z: tileZoom };
       }));
     }
-    const tiles = await Promise.all(jobs);
+    const responses = await Promise.all(jobs);
+    const tiles: DrawTile[] = [];
+    // Cached responses can all resolve in one turn. Decode sequentially so
+    // their bounded batches cannot accumulate into a single long task.
+    for (const response of responses) {
+      tiles.push(response.buffer ? await decodeTile(response.buffer, response.x, response.y, response.z) : { x: response.x, y: response.y, z: response.z, features: [] });
+    }
     if (revision !== this.tileRequestRevision || this.abort.signal.aborted) return;
     this.tiles = tiles;
     this.canvas.dataset.tileCount = String(tiles.length);
