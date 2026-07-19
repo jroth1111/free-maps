@@ -1,6 +1,6 @@
 # Free Maps
 
-Free Maps is an ESM-only, renderer-neutral map explorer for modern browsers. It provides a schema-v1 dataset, structural UI, opt-in themes, explicit MapLibre resources, scoped tile authorization, and configurable Cloudflare cache policy. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
+Free Maps is an ESM-only, renderer-neutral map explorer for modern browsers. It provides a schema-v1 dataset, structural UI, opt-in themes, a lightweight vector-canvas renderer, an optional MapLibre adapter, scoped tile authorization, and configurable Cloudflare cache policy. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
 
 Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 
@@ -9,9 +9,9 @@ Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 - Map data: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
 - Basemap schema/style/assets: [Protomaps](https://protomaps.com)
 - Tile archive: [PMTiles](https://docs.protomaps.com/pmtiles/) containing vector MVT tiles
-- Browser renderer: [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)
+- Browser renderer: lightweight Free Maps vector canvas; optional [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) adapter
 - Hosting: [Cloudflare Worker](https://developers.cloudflare.com/workers/) + R2 range reads
-- Demo markers: synthetic GeoJSON data clustered by MapLibre
+- Demo markers: synthetic GeoJSON data clustered by the vector renderer
 
 No Google Maps or Cloudflare Web Analytics requests are part of the demo runtime.
 
@@ -23,9 +23,28 @@ Registry publication remains deferred. Install the v0.3.0 release tarball:
 npm install ./free-maps-0.3.0.tgz
 ```
 
-Install `maplibre-gl` only when using the `free-maps/maplibre` adapter. React and MapLibre are optional peers; `core`, `cloudflare`, and `element` do not import either one.
+Install `maplibre-gl` only when using the `free-maps/maplibre` adapter. React and MapLibre are optional peers; `core`, `cloudflare`, `element`, and `vector` do not import either one.
 
-## Custom elements and explicit renderer resources
+## Lightweight vector renderer
+
+The hosted demo uses the first-party canvas renderer. It fetches the same scoped, authenticated TileJSON and MVT endpoints, incrementally decodes a bounded set of visible vector layers, paints real OpenStreetMap/Protomaps content, and provides pan, zoom, clustering, selection, attribution, cancellation, and responsive redraw without a WebGL startup task.
+
+```ts
+import { defineFreeMapElements } from "free-maps/element";
+import { createVectorCanvasRenderer } from "free-maps/vector";
+
+defineFreeMapElements({
+  renderer: createVectorCanvasRenderer({
+    tileJsonUrl: "/tiles/melbourne.json",
+    tileSession: {
+      endpoint: "/api/tile-session",
+      protectedUrlPrefix: "/tiles/",
+    },
+  }),
+});
+```
+
+## MapLibre and explicit renderer resources
 
 Nothing registers custom elements, loads MapLibre, selects a basemap, or chooses a theme as an import side effect.
 
