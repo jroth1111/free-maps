@@ -25,6 +25,9 @@ interface DrawFeature {
 
 interface DrawTile { x: number; y: number; z: number; features: DrawFeature[]; }
 interface ScreenTarget { x: number; y: number; radius: number; points: RenderablePoint[]; lng: number; lat: number; }
+interface CanvasTokens { marker: string; selected: string; stroke: string; cluster: string; clusterText: string; textMuted: string; }
+interface TargetCache { coordinates: Array<{ id: string; lat: number; lng: number }>; targets: ScreenTarget[]; }
+interface MarkerGroup extends TargetCache { group: SVGGElement; }
 interface TileJsonResult { value: TileJson; responseUrl: string; }
 
 export interface VectorCanvasRendererOptions {
@@ -118,15 +121,18 @@ function replaceTileTemplate(template: string, z: number, x: number, y: number):
 export class VectorCanvasRenderer implements MapRenderer {
   private canvas?: HTMLCanvasElement;
   private context?: CanvasRenderingContext2D;
-  private overlayCanvas?: HTMLCanvasElement;
-  private overlayContext?: CanvasRenderingContext2D;
+  private overlay?: SVGSVGElement;
   private basemapDirty = true;
+  private tokens?: CanvasTokens;
   private state?: MapRendererState;
   private onSelect?: (id: string) => void;
   private center = { lng: 0, lat: 0 };
   private zoom = 12;
   private tiles: DrawTile[] = [];
   private targets: ScreenTarget[] = [];
+  private projected = new Map<string, { lat: number; lng: number; x: number; y: number }>();
+  private targetCache = new WeakMap<RenderablePoint[], TargetCache>();
+  private markerGroups = new Map<RenderablePoint[], MarkerGroup>();
   private abort = new AbortController();
   private resize?: ResizeObserver;
   private controls?: HTMLElement;
@@ -159,17 +165,24 @@ export class VectorCanvasRenderer implements MapRenderer {
     canvas.setAttribute("aria-label", `${state.dataset.label} interactive map`);
     canvas.tabIndex = 0;
     Object.assign(canvas.style, { display: "block", height: "100%", width: "100%", touchAction: "none" });
-    const overlay = document.createElement("canvas");
-    overlay.className = "free-map-vector-overlay";
+    const overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    overlay.classList.add("free-map-vector-overlay");
     overlay.setAttribute("aria-hidden", "true");
     Object.assign(overlay.style, { display: "block", height: "100%", inset: "0", pointerEvents: "none", position: "absolute", width: "100%", zIndex: "1" });
     container.replaceChildren(canvas, overlay);
     this.canvas = canvas;
     this.context = canvas.getContext("2d", { alpha: false }) ?? undefined;
     if (!this.context) throw new Error("Canvas 2D is unavailable");
-    this.overlayCanvas = overlay;
-    this.overlayContext = overlay.getContext("2d") ?? undefined;
-    if (!this.overlayContext) throw new Error("Canvas 2D is unavailable");
+    this.overlay = overlay;
+    const styles = getComputedStyle(canvas);
+    this.tokens = {
+      marker: cssToken(styles, "--free-map-marker", "#2563eb"),
+      selected: cssToken(styles, "--free-map-marker-selected", "#b42318"),
+      stroke: cssToken(styles, "--free-map-marker-stroke", "#ffffff"),
+      cluster: cssToken(styles, "--free-map-cluster", "#2563eb"),
+      clusterText: cssToken(styles, "--free-map-cluster-text", "#ffffff"),
+      textMuted: cssToken(styles, "--free-map-text-muted", "#665f57"),
+    };
     this.installChrome(container);
     this.installInteraction();
     this.resize = new ResizeObserver(() => { if (this.sizeCanvas()) { this.draw(); this.requestVisibleTiles(); } });
@@ -185,7 +198,7 @@ export class VectorCanvasRenderer implements MapRenderer {
   async update(state: MapRendererState): Promise<void> {
     this.state = state;
     const selected = state.points.find((point) => point.id === state.selectedId);
-    if (selected) { this.center = { lng: selected.lng, lat: selected.lat }; this.zoom = Math.max(this.zoom, 15); this.invalidateBasemap(); await this.loadVisibleTiles(); }
+    if (selected) { this.center = { lng: selected.lng, lat: selected.lat }; this.zoom = Math.max(this.zoom, 15); this.invalidateViewport(); await this.loadVisibleTiles(); }
     this.draw();
   }
 
@@ -198,7 +211,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       const spanY = Math.abs(latToWorld(bounds[1], zoom) - latToWorld(bounds[3], zoom));
       if (spanX <= width - 112 && spanY <= height - 112) { this.zoom = zoom; break; }
     }
-    this.invalidateBasemap();
+    this.invalidateViewport();
     this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
@@ -206,7 +219,7 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (!this.state) return;
     this.center = { ...this.state.dataset.center };
     this.zoom = this.state.dataset.defaultZoom;
-    this.invalidateBasemap();
+    this.invalidateViewport();
     this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
@@ -222,18 +235,21 @@ export class VectorCanvasRenderer implements MapRenderer {
     this.restoreContainerPosition?.();
     this.restoreContainerPosition = undefined;
     this.canvas?.remove();
-    this.overlayCanvas?.remove();
+    this.overlay?.remove();
     this.controls?.remove();
     this.attribution?.remove();
     this.canvas = undefined;
     this.context = undefined;
-    this.overlayCanvas = undefined;
-    this.overlayContext = undefined;
+    this.overlay = undefined;
+    this.tokens = undefined;
     this.basemapDirty = true;
+    this.projected.clear();
+    this.targetCache = new WeakMap();
+    this.markerGroups.clear();
   }
 
   private sizeCanvas(): boolean {
-    if (!this.canvas || !this.context || !this.overlayCanvas || !this.overlayContext) return false;
+    if (!this.canvas || !this.context || !this.overlay) return false;
     const ratio = Math.min(globalThis.devicePixelRatio || 1, this.options.devicePixelRatioCeiling ?? 1.5);
     const width = Math.max(1, Math.round(this.canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(this.canvas.clientHeight * ratio));
@@ -241,12 +257,10 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (changed) {
       this.canvas.width = width;
       this.canvas.height = height;
-      this.overlayCanvas.width = width;
-      this.overlayCanvas.height = height;
-      this.invalidateBasemap();
+      this.basemapDirty = true; this.projected.clear(); this.targetCache = new WeakMap(); this.resetMarkerGroups();
     }
+    this.overlay.setAttribute("viewBox", `0 0 ${this.canvas.clientWidth} ${this.canvas.clientHeight}`);
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    this.overlayContext.setTransform(ratio, 0, 0, ratio, 0, 0);
     return changed;
   }
 
@@ -304,7 +318,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       if (!cancelled && moved) this.paintPan();
       else if (cancelled && moved) {
         this.center = { lng: worldToLng(drag.centerX, this.zoom), lat: worldToLat(drag.centerY, this.zoom) };
-        this.invalidateBasemap();
+        this.invalidateViewport();
         this.draw();
       }
       this.suppressNextClick = !cancelled && moved;
@@ -337,14 +351,14 @@ export class VectorCanvasRenderer implements MapRenderer {
         const amount = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -80 : 80;
         const x = lngToWorld(this.center.lng, this.zoom) + (event.key === "ArrowLeft" || event.key === "ArrowRight" ? amount : 0);
         const y = latToWorld(this.center.lat, this.zoom) + (event.key === "ArrowUp" || event.key === "ArrowDown" ? amount : 0);
-        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.invalidateBasemap(); this.draw(); this.requestVisibleTiles(); this.emitViewport("user");
+        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.invalidateViewport(); this.draw(); this.requestVisibleTiles(); this.emitViewport("user");
       }
     });
   }
 
   private changeZoom(delta: number, cause: MapViewportCause): void {
     this.zoom = clamp(this.zoom + delta, this.options.minZoom ?? 3, this.options.maxZoom ?? 17);
-    this.invalidateBasemap();
+    this.invalidateViewport();
     this.draw(); this.requestVisibleTiles(); this.emitViewport(cause);
   }
 
@@ -380,7 +394,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       lng: worldToLng(this.dragging.centerX - (this.dragging.latestX - this.dragging.x), this.zoom),
       lat: worldToLat(this.dragging.centerY - (this.dragging.latestY - this.dragging.y), this.zoom),
     };
-    this.invalidateBasemap();
+    this.invalidateViewport();
     this.draw();
   }
 
@@ -444,24 +458,30 @@ export class VectorCanvasRenderer implements MapRenderer {
   }
 
   private invalidateBasemap(): void { this.basemapDirty = true; }
+  private invalidateViewport(): void {
+    this.basemapDirty = true;
+    this.projected.clear();
+    this.targetCache = new WeakMap();
+    this.resetMarkerGroups();
+  }
+
+  private resetMarkerGroups(): void { this.markerGroups.clear(); this.overlay?.replaceChildren(); }
 
   private draw(): void {
-    const canvas = this.canvas; const context = this.context; const overlay = this.overlayContext; const state = this.state;
-    if (!canvas || !context || !overlay || !state) return;
+    const canvas = this.canvas; const context = this.context; const state = this.state; const tokens = this.tokens;
+    if (!canvas || !context || !this.overlay || !state || !tokens) return;
     const width = canvas.clientWidth; const height = canvas.clientHeight;
-    const styles = getComputedStyle(canvas);
     if (this.basemapDirty) {
       context.clearRect(0, 0, width, height);
       context.fillStyle = this.options.basemapStyle.background;
       context.fillRect(0, 0, width, height);
       for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
-      context.fillStyle = cssToken(styles, "--free-map-text-muted", "#665f57");
+      context.fillStyle = tokens.textMuted;
       context.font = "10px system-ui"; context.textAlign = "right"; context.textBaseline = "bottom";
       context.fillText(`z${this.zoom.toFixed(0)}`, width - 46, height - 6);
       this.basemapDirty = false;
     }
-    overlay.clearRect(0, 0, width, height);
-    this.drawPoints(overlay, state.points, state.selectedId, width, height, styles);
+    this.drawPoints(state.points, state.selectedId, width, height, tokens);
     canvas.dataset.zoom = this.zoom.toFixed(0);
   }
 
@@ -485,30 +505,78 @@ export class VectorCanvasRenderer implements MapRenderer {
     }
   }
 
-  private drawPoints(context: CanvasRenderingContext2D, points: RenderablePoint[], selectedId: string | null, width: number, height: number, styles: CSSStyleDeclaration): void {
-    const marker = cssToken(styles, "--free-map-marker", "#2563eb");
-    const selected = cssToken(styles, "--free-map-marker-selected", "#b42318");
-    const stroke = cssToken(styles, "--free-map-marker-stroke", "#ffffff");
-    const cluster = cssToken(styles, "--free-map-cluster", "#2563eb");
-    const clusterText = cssToken(styles, "--free-map-cluster-text", "#ffffff");
-    const centerX = lngToWorld(this.center.lng, this.zoom); const centerY = latToWorld(this.center.lat, this.zoom);
-    const cells = new Map<string, ScreenTarget>();
-    for (const point of points) {
-      const x = lngToWorld(point.lng, this.zoom) - centerX + width / 2; const y = latToWorld(point.lat, this.zoom) - centerY + height / 2;
-      if (x < -30 || y < -30 || x > width + 30 || y > height + 30) continue;
-      const key = `${Math.floor(x / 46)}:${Math.floor(y / 46)}`;
-      const target = cells.get(key);
-      if (target) { target.points.push(point); target.x = (target.x * (target.points.length - 1) + x) / target.points.length; target.y = (target.y * (target.points.length - 1) + y) / target.points.length; target.lng = (target.lng * (target.points.length - 1) + point.lng) / target.points.length; target.lat = (target.lat * (target.points.length - 1) + point.lat) / target.points.length; }
-      else cells.set(key, { x, y, radius: 10, points: [point], lng: point.lng, lat: point.lat });
+  private drawPoints(points: RenderablePoint[], selectedId: string | null, width: number, height: number, tokens: CanvasTokens): void {
+    const { marker, selected, stroke, cluster, clusterText } = tokens;
+    const cachedGroup = this.markerGroups.get(points);
+    if (cachedGroup && cachedGroup.coordinates.length === points.length && cachedGroup.coordinates.every((coordinate, index) => {
+      const point = points[index]; return point?.id === coordinate.id && point.lat === coordinate.lat && point.lng === coordinate.lng;
+    })) {
+      for (const { group } of this.markerGroups.values()) group.style.visibility = group === cachedGroup.group ? "visible" : "hidden";
+      this.targets = cachedGroup.targets;
+      this.markerGroups.delete(points); this.markerGroups.set(points, cachedGroup);
+      return;
     }
-    this.targets = [...cells.values()];
+    if (cachedGroup) { cachedGroup.group.remove(); this.markerGroups.delete(points); }
+    const centerX = lngToWorld(this.center.lng, this.zoom); const centerY = latToWorld(this.center.lat, this.zoom);
+    const cellSize = points.length >= 250
+      ? this.zoom <= 12 ? 160 : this.zoom <= 13 ? 96 : this.zoom <= 14 ? 64 : 46
+      : points.length >= 100 && this.zoom <= 13 ? 64 : 46;
+    const cached = this.targetCache.get(points);
+    let targets = cached?.coordinates.length === points.length && cached.coordinates.every((coordinate, index) => {
+      const point = points[index]; return point?.id === coordinate.id && point.lat === coordinate.lat && point.lng === coordinate.lng;
+    }) ? cached.targets : undefined;
+    if (!targets) {
+      const cells = new Map<string, ScreenTarget>();
+      for (const point of points) {
+        let projected = this.projected.get(point.id);
+        if (!projected || projected.lat !== point.lat || projected.lng !== point.lng) {
+          projected = { lat: point.lat, lng: point.lng, x: lngToWorld(point.lng, this.zoom) - centerX + width / 2, y: latToWorld(point.lat, this.zoom) - centerY + height / 2 };
+          this.projected.set(point.id, projected);
+        }
+        const { x, y } = projected;
+        if (x < -30 || y < -30 || x > width + 30 || y > height + 30) continue;
+        const key = `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
+        const target = cells.get(key);
+        if (target) { target.points.push(point); target.x = (target.x * (target.points.length - 1) + x) / target.points.length; target.y = (target.y * (target.points.length - 1) + y) / target.points.length; target.lng = (target.lng * (target.points.length - 1) + point.lng) / target.points.length; target.lat = (target.lat * (target.points.length - 1) + point.lat) / target.points.length; }
+        else cells.set(key, { x, y, radius: 10, points: [point], lng: point.lng, lat: point.lat });
+      }
+      targets = [...cells.values()];
+      this.targetCache.set(points, { coordinates: points.map(({ id, lat, lng }) => ({ id, lat, lng })), targets });
+    }
+    this.targets = targets;
+    const clusters: ScreenTarget[] = []; const markers: ScreenTarget[] = []; const selectedMarkers: ScreenTarget[] = [];
     for (const target of this.targets) {
       const count = target.points.length; const isSelected = count === 1 && target.points[0]!.id === selectedId;
       target.radius = count > 1 ? (count >= 100 ? 25 : count >= 20 ? 21 : 17) : isSelected ? 11 : 8;
-      context.beginPath(); context.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
-      context.fillStyle = count > 1 ? cluster : isSelected ? selected : marker; context.fill();
-      context.strokeStyle = stroke; context.lineWidth = 2; context.stroke();
-      if (count > 1) { context.fillStyle = clusterText; context.font = "700 12px system-ui"; context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(count > 999 ? `${Math.round(count / 1000)}k` : String(count), target.x, target.y); }
+      (count > 1 ? clusters : isSelected ? selectedMarkers : markers).push(target);
+    }
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const nodes: SVGElement[] = [];
+    const coordinate = (value: number) => String(Math.round(value * 10) / 10);
+    const drawCircles = (group: ScreenTarget[], fill: string) => {
+      if (!group.length) return;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", group.map(({ x, y, radius }) => `M${coordinate(x - radius)} ${coordinate(y)}a${radius} ${radius} 0 1 0 ${radius * 2} 0a${radius} ${radius} 0 1 0 ${-radius * 2} 0`).join(""));
+      path.style.fill = fill; path.style.stroke = stroke; path.style.strokeWidth = "2";
+      nodes.push(path);
+    };
+    drawCircles(clusters, cluster); drawCircles(markers, marker); drawCircles(selectedMarkers, selected);
+    for (const target of clusters) {
+      const count = target.points.length;
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", coordinate(target.x)); text.setAttribute("y", coordinate(target.y)); text.setAttribute("dominant-baseline", "middle"); text.setAttribute("text-anchor", "middle");
+      text.style.fill = clusterText; text.style.font = "700 12px system-ui"; text.textContent = count > 999 ? `${Math.round(count / 1000)}k` : String(count);
+      nodes.push(text);
+    }
+    group.replaceChildren(...nodes);
+    for (const cached of this.markerGroups.values()) cached.group.style.visibility = "hidden";
+    group.style.visibility = "visible";
+    this.overlay!.append(group);
+    this.markerGroups.set(points, { group, coordinates: points.map(({ id, lat, lng }) => ({ id, lat, lng })), targets: this.targets });
+    while (this.markerGroups.size > 2) {
+      const oldest = this.markerGroups.keys().next().value!;
+      const removed = this.markerGroups.get(oldest)!;
+      this.markerGroups.delete(oldest); removed.group.remove();
     }
   }
 }

@@ -105,7 +105,11 @@ describe("element lifecycle", () => {
     const changes: unknown[] = []; element.addEventListener("free-map-filter-change", (event) => changes.push((event as CustomEvent).detail));
     document.body.append(element); await element.activate(); await settle(element);
     expect(element.activeFilters).toEqual(["top"]); expect(element.shadowRoot?.querySelectorAll('[part~="filter-chip"]')).toHaveLength(1);
-    const calls = matches.mock.calls.length; element.select("c"); await settle(element); expect(matches).toHaveBeenCalledTimes(calls);
+    const calls = matches.mock.calls.length;
+    const initialPoints = renderer.state?.points;
+    element.query = "Cafe"; await settle(element); const searchedCalls = matches.mock.calls.length; expect(searchedCalls).toBeGreaterThan(calls);
+    element.query = ""; await settle(element); expect(matches).toHaveBeenCalledTimes(searchedCalls); expect(renderer.state?.points).toBe(initialPoints);
+    element.select("c"); await settle(element); expect(matches).toHaveBeenCalledTimes(searchedCalls);
     expect(changes.at(-1)).toEqual(expect.objectContaining({ filters: ["top"] }));
   });
 

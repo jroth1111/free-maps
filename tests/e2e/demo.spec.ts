@@ -88,7 +88,9 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const canvas = explorer.locator(".free-map-vector-canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
   const map = explorer.locator(".map");
   const before = await map.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
-  const box = await canvas.boundingBox(); expect(box).toBeTruthy(); await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.waitForTimeout(400);
+  const zoom = await canvas.getAttribute("data-zoom");
+  await canvas.focus(); await page.keyboard.press("+");
+  await expect(canvas).not.toHaveAttribute("data-zoom", zoom!);
   const after = await map.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
   const initialPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
   const keyboardResult = explorer.locator(".row button").nth(1); await keyboardResult.focus(); await page.keyboard.press("Enter");

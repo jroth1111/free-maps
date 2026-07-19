@@ -40,6 +40,7 @@ describe("vector canvas renderer", () => {
   });
 
   it("paints numeric vector-tile URLs with scoped credentials and disposes cleanly", async () => {
+    const computedStyles = vi.spyOn(window, "getComputedStyle");
     const requests: Array<{ url: string; authorization: string | null }> = [];
     let transientTileFailure = true;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -63,9 +64,17 @@ describe("vector canvas renderer", () => {
     expect(tiles.every(({ url }) => !/%7B|%7D/.test(url))).toBe(true);
     expect(requests.filter(({ url }) => new URL(url).pathname.startsWith("/tiles/")).every(({ authorization }) => authorization === "Bearer scoped")).toBe(true);
     const basemapPaints = context.fillRect.mock.calls.length;
-    await renderer.update({ ...state, points: state.points.slice(0, 1) });
+    const styleReads = computedStyles.mock.calls.length;
+    const filteredPoints = state.points.slice(0, 1).map((point) => ({ ...point }));
+    await renderer.update({ ...state, points: filteredPoints });
     expect(context.fillRect.mock.calls).toHaveLength(basemapPaints);
-    expect(container.querySelectorAll("canvas")).toHaveLength(2);
+    expect(computedStyles.mock.calls).toHaveLength(styleReads);
+    expect(container.querySelectorAll("canvas")).toHaveLength(1);
+    expect(container.querySelector("svg.free-map-vector-overlay")).toBeTruthy();
+    const projectedPath = container.querySelector('svg g[style*="visible"] path')?.getAttribute("d");
+    filteredPoints[0]!.lng += .01;
+    await renderer.update({ ...state, points: filteredPoints });
+    expect(container.querySelector('svg g[style*="visible"] path')?.getAttribute("d")).not.toBe(projectedPath);
     const zoomButton = container.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')!;
     zoomButton.click(); expect(viewports.at(-1)?.cause).toBe("user");
     expect(context.fillRect.mock.calls.length).toBeGreaterThan(basemapPaints);

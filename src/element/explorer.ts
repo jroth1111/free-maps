@@ -38,7 +38,9 @@ export class FreeMapExplorerElement extends LitElement {
   private indexedDataset: FreeMapDataset | null = null;
   private sortedMemo: IndexedPointSortCache = new Map();
   private filteredMemo?: { dataset: FreeMapDataset; query: string; category: string; sort: FreeMapSort; indexed: IndexedFreeMapPoint[]; quickFilters: FreeMapQuickFilter[]; activeFilters: string[]; rows: FreeMapPoint[] };
+  private filteredCache = new Map<string, { dataset: FreeMapDataset; indexed: IndexedFreeMapPoint[]; quickFilters: FreeMapQuickFilter[]; rows: FreeMapPoint[] }>();
   private renderableMemo?: { dataset: FreeMapDataset; rows: FreeMapPoint[]; selectedId: string | null; validPoint: NonNullable<FreeMapElementOptions["validPoint"]>; points: MapRendererState["points"] };
+  private renderableCache = new Map<FreeMapPoint[], { dataset: FreeMapDataset; selectedId: string | null; validPoint: NonNullable<FreeMapElementOptions["validPoint"]>; points: MapRendererState["points"] }>();
   private normalizedQuickMemo?: { source: FreeMapQuickFilter[] | undefined; filters: FreeMapQuickFilter[] };
   private gesture?: { pointerId: number; startY: number; startOffset: number; height: number };
   private gestureFrame = 0;
@@ -115,7 +117,14 @@ export class FreeMapExplorerElement extends LitElement {
     const activeFilters = this.normalizedActiveFilters;
     const cached = this.filteredMemo;
     if (cached && cached.dataset === dataset && cached.indexed === this.indexed && cached.query === this.query && cached.category === this.category && cached.sort === this.sort && cached.quickFilters === quickFilters && cached.activeFilters.length === activeFilters.length && cached.activeFilters.every((id, index) => id === activeFilters[index])) return cached.rows;
-    const rows = filterAndSortPointsMemoized(this.indexed, dataset.categories, this.query, this.category, this.sort, this.sortedMemo, dataset, quickFilters, activeFilters);
+    const cacheKey = JSON.stringify([this.query, this.category, this.sort, activeFilters]);
+    const reusable = this.filteredCache.get(cacheKey);
+    const rows = reusable?.dataset === dataset && reusable.indexed === this.indexed && reusable.quickFilters === quickFilters
+      ? reusable.rows
+      : filterAndSortPointsMemoized(this.indexed, dataset.categories, this.query, this.category, this.sort, this.sortedMemo, dataset, quickFilters, activeFilters);
+    this.filteredCache.delete(cacheKey);
+    this.filteredCache.set(cacheKey, { dataset, indexed: this.indexed, quickFilters, rows });
+    if (this.filteredCache.size > 8) this.filteredCache.delete(this.filteredCache.keys().next().value!);
     this.filteredMemo = { dataset, indexed: this.indexed, query: this.query, category: this.category, sort: this.sort, quickFilters, activeFilters, rows };
     return rows;
   }
@@ -123,7 +132,11 @@ export class FreeMapExplorerElement extends LitElement {
     const validPoint = this.options.validPoint ?? pointIsMappable;
     const cached = this.renderableMemo;
     if (cached && cached.dataset === dataset && cached.rows === rows && cached.selectedId === this.selectedId && cached.validPoint === validPoint) return cached.points;
-    const points = toRenderablePoints(rows, dataset, this.selectedId, validPoint);
+    const reusable = this.renderableCache.get(rows);
+    const points = reusable?.dataset === dataset && reusable.selectedId === this.selectedId && reusable.validPoint === validPoint ? reusable.points : toRenderablePoints(rows, dataset, this.selectedId, validPoint);
+    this.renderableCache.delete(rows);
+    this.renderableCache.set(rows, { dataset, selectedId: this.selectedId, validPoint, points });
+    if (this.renderableCache.size > 8) this.renderableCache.delete(this.renderableCache.keys().next().value!);
     this.renderableMemo = { dataset, rows, selectedId: this.selectedId, validPoint, points };
     return points;
   }
@@ -156,8 +169,8 @@ export class FreeMapExplorerElement extends LitElement {
   protected updated(changed: PropertyValues<this>): void {
     if (changed.has("src")) this.runtime.setSrc(this.src);
     if (changed.has("activation")) this.runtime.activationChanged();
-    if (changed.has("options")) { this.normalizedQuickMemo = undefined; this.filteredMemo = undefined; if (!this.options.searchArea) this.searchAreaViewport = null; }
-    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); this.sortedMemo.clear(); this.filteredMemo = undefined; this.renderableMemo = undefined; }
+    if (changed.has("options")) { this.normalizedQuickMemo = undefined; this.filteredMemo = undefined; this.filteredCache.clear(); this.renderableMemo = undefined; this.renderableCache.clear(); if (!this.options.searchArea) this.searchAreaViewport = null; }
+    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); this.sortedMemo.clear(); this.filteredMemo = undefined; this.filteredCache.clear(); this.renderableMemo = undefined; this.renderableCache.clear(); }
     if (changed.has("query") || changed.has("category") || changed.has("sort") || changed.has("activeFilters") || changed.has("options")) {
       const normalized = this.normalizedActiveFilters;
       if (changed.has("activeFilters") && (normalized.length !== this.activeFilters.length || normalized.some((id, index) => id !== this.activeFilters[index]))) this.activeFilters = normalized;
