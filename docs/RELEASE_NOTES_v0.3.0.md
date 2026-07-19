@@ -2,7 +2,7 @@
 
 Status: **not released**. The candidate is implemented and retained on `main`, but the production release, `v0.3.0` tag, GitHub release, and npm publication are blocked by the authoritative Lighthouse Performance gate.
 
-v0.3.0 separates structural UI from opt-in heritage themes, makes every MapLibre resource explicit, scopes tile credentials to an exact origin/path prefix, and adds version-isolated Workers Cache plus authenticated token-free PMTiles caching.
+v0.3.0 separates structural UI from opt-in Atlas themes, makes every MapLibre resource explicit, scopes tile credentials to an exact origin/path prefix, and adds version-isolated Workers Cache plus authenticated token-free PMTiles caching.
 
 The candidate includes schema-v1 datasets, a renderer-neutral element lifecycle, static MPA routes, real 404 handling, protected R2 range reads, the Greater Melbourne PMTiles archive, compact OpenStreetMap/Protomaps attribution, and npm-registry publication deferral.
 

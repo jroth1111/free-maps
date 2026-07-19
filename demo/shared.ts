@@ -10,7 +10,7 @@ export const renderer: MapRendererFactory = async () => {
   void loadMapLibre().catch(() => undefined);
   const { MapLibreRenderer } = await rendererModule;
   return new MapLibreRenderer({
-    styleUrl: "/map-assets/v0.3.0/heritage-light.json",
+    styleUrl: "/map-assets/v0.3.0/atlas-light.json",
     styleIsKnownValid: true,
     tileJsonUrl: "/tiles/melbourne.json",
     tileSession: { endpoint: "/api/tile-session", protectedUrlPrefix: "/tiles/" },

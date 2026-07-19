@@ -12,4 +12,4 @@ Free Maps depends on and redistributes assets from the following projects. Their
 - Literata — SIL Open Font License 1.1
 - Noto Sans glyph PBFs — SIL Open Font License 1.1
 
-The reduced generated sprite atlas and regular-face Noto glyph subsets are pinned to basemaps-assets revision `028c18f713baecad011301ff7a69acc39bcc2ae7`. The release tarball includes only the two optional heritage UI font files; basemap glyphs, the generated style/sprite, and the same-origin MapLibre CSP worker belong to the demo static deployment.
+The reduced generated sprite atlas and regular-face Noto glyph subsets are pinned to basemaps-assets revision `028c18f713baecad011301ff7a69acc39bcc2ae7`. The release tarball includes only the two optional Atlas UI font files; basemap glyphs, the generated style/sprite, and the same-origin MapLibre CSP worker belong to the demo static deployment.
