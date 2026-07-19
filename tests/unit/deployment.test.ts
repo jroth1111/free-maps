@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("deployment routing", () => {
-  it("routes every asset request through the selected Worker version", () => {
+  it("routes version-sensitive documents through the selected Worker version", () => {
     const config = JSON.parse(readFileSync(resolve("wrangler.jsonc"), "utf8")) as {
       assets?: { run_worker_first?: string[] };
       exports?: { default?: { cache?: { enabled?: boolean } } };
@@ -20,6 +20,47 @@ describe("deployment routing", () => {
       expect(section).toContain("Cloudflare-CDN-Cache-Control: no-store");
       expect(section).not.toMatch(/Cloudflare-CDN-Cache-Control: public/);
     }
+  });
+
+  it("keeps the acceptance preview isolated from production routes and caches", () => {
+    const config = JSON.parse(readFileSync(resolve("wrangler.jsonc"), "utf8")) as {
+      r2_buckets?: Array<{ binding?: string; bucket_name?: string }>;
+      vars?: Record<string, string>;
+      env?: {
+        preview?: {
+          name?: string;
+          workers_dev?: boolean;
+          preview_urls?: boolean;
+          routes?: unknown[];
+          version_metadata?: { binding?: string };
+          r2_buckets?: Array<{ binding?: string; bucket_name?: string }>;
+          vars?: Record<string, string>;
+        };
+      };
+    };
+    const preview = config.env?.preview;
+
+    expect(preview).toMatchObject({
+      name: "free-maps-preview",
+      workers_dev: true,
+      preview_urls: false,
+      routes: [],
+      version_metadata: { binding: "CF_VERSION_METADATA" },
+    });
+    expect(preview?.r2_buckets).toEqual(config.r2_buckets);
+    expect(preview?.vars).toMatchObject({
+      APP_VERSION: config.vars?.APP_VERSION,
+      BASEMAP_VERSION: config.vars?.BASEMAP_VERSION,
+      BASEMAP_KEY: config.vars?.BASEMAP_KEY,
+      TILE_CACHE_VERSION: config.vars?.TILE_CACHE_VERSION,
+      TILE_ENCODING_REVISION: config.vars?.TILE_ENCODING_REVISION,
+      TILE_CACHE_NAMESPACE: "free-maps-preview",
+      PRODUCTION_ORIGIN: "https://free-maps-preview.gwizz.workers.dev",
+    });
+    expect(preview?.vars?.PRODUCTION_ORIGIN).not.toBe(config.vars?.PRODUCTION_ORIGIN);
+    expect(readFileSync(resolve("package.json"), "utf8")).toContain('"deploy:preview": "node scripts/deploy.mjs --preview"');
+    const deployScript = readFileSync(resolve("scripts/deploy.mjs"), "utf8");
+    expect(deployScript).toContain('["--env", "preview"]');
   });
 
   it("discovers demo themes before route enhancement", () => {
