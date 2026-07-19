@@ -171,17 +171,17 @@ The demo does not request MapLibre. It loads the vector renderer only after stab
 
 ### Current Lighthouse results
 
-The accepted live-candidate matrix from 2026-07-19 uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **98 to 100**, the lowest individual run is **96**, and **all 30** route/profile/cache rows meet the accepted baseline. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in all 90 reports**.
+The accepted live-candidate matrix from 2026-07-20 uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across pinned mobile, iPad, and desktop profiles. Performance is **100 in all 90 reports**, including every individual run. Accessibility, Best Practices, SEO, and Agentic Browsing are also **100 in all 90 reports**.
 
 | Route | Cold Performance medians | Warm Performance medians |
 | --- | --- | --- |
-| `/` | 98–100 | 99–100 |
-| `/embed/` | 98–100 | 99–100 |
-| `/states/` | 98–100 | 99–100 |
-| `/vanilla/` | 98–100 | 99–100 |
-| `/react/` | 98–100 | 99–100 |
+| `/` | 100 | 100 |
+| `/embed/` | 100 | 100 |
+| `/states/` | 100 | 100 |
+| `/vanilla/` | 100 | 100 |
+| `/react/` | 100 | 100 |
 
-Mobile and iPad medians are **100 on every route in both cache modes**. Cold desktop medians are **98**; warm desktop medians are **99**. See [the accepted release evidence](docs/RELEASE_NOTES_v0.3.0.md).
+Mobile, iPad, and desktop scores are **100 on every route, in every individual run, in both cache modes**. See [the accepted release evidence](docs/RELEASE_NOTES_v0.3.0.md).
 
 See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/UI_VERIFICATION.md](docs/UI_VERIFICATION.md).
 

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import lighthouse from "lighthouse";
 import * as chromeLauncher from "chrome-launcher";
+import { profiles } from "./lighthouse-profiles.mjs";
 
 const baseUrl = process.env.LIGHTHOUSE_BASE_URL ?? process.env.LIVE_BASE_URL;
 if (!baseUrl) throw new Error("Set LIGHTHOUSE_BASE_URL to the deployed origin");
@@ -17,11 +18,6 @@ const modes = (process.env.LIGHTHOUSE_MODES ?? "cold,warm").split(",");
 const outputDir = resolve(process.env.LIGHTHOUSE_OUTPUT_DIR ?? "artifacts/lighthouse-v0.3.0");
 const baselinePath = resolve(process.env.LIGHTHOUSE_BASELINE ?? "docs/lighthouse-accepted-baseline.json");
 rmSync(outputDir, { recursive: true, force: true }); mkdirSync(outputDir, { recursive: true });
-const profiles = {
-  mobile: { formFactor: "mobile", screenEmulation: { mobile: true, width: 412, height: 823, deviceScaleFactor: 1.75, disabled: false } },
-  ipad: { formFactor: "mobile", screenEmulation: { mobile: true, width: 768, height: 1024, deviceScaleFactor: 2, disabled: false } },
-  desktop: { formFactor: "desktop", preset: "desktop", screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1, disabled: false } },
-};
 const selectedProfiles = (process.env.LIGHTHOUSE_PROFILES ?? Object.keys(profiles).join(",")).split(",");
 const categories = ["performance", "accessibility", "best-practices", "seo", "agentic-browsing"];
 const rows = [];
@@ -70,14 +66,14 @@ const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
 const failures = [];
 for (const [mode, matrix] of Object.entries(matrices)) for (const row of matrix) {
   if (row.minimumPerformance < .96) failures.push(`${mode} ${row.route} ${row.profile}: minimum performance ${row.minimumPerformance}`);
-  if ((row.profile === "mobile" || row.profile === "ipad") && row.medians.performance !== 1) failures.push(`${mode} ${row.route} ${row.profile}: median performance must remain 1`);
+  if (row.medians.performance !== 1) failures.push(`${mode} ${row.route} ${row.profile}: median performance must be 1`);
   for (const measured of rows.filter((candidate) => candidate.mode === mode && candidate.route === row.route && candidate.profile === row.profile)) for (const id of categories.slice(1)) if (measured.scores[id] !== 1) failures.push(`${mode} ${row.route} ${row.profile} run ${measured.run}: ${id} must be 1`);
   const accepted = baseline.matrix.find((entry) => entry.route === row.route && entry.profile === row.profile);
   if (!accepted) failures.push(`Missing accepted baseline for ${row.route} ${row.profile}`);
   else for (const id of categories) if (row.medians[id] < accepted.medians[id]) failures.push(`${mode} ${row.route} ${row.profile}: ${id} regressed below accepted baseline`);
 }
 
-const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
+const result = { chromeVersion: "151.0.7922.34", lighthouseVersion: "13.4.0", workerVersionOverrideId: workerVersionOverrideId ?? null, effectiveProfiles: Object.fromEntries(selectedProfiles.map((profile) => [profile, profiles[profile]])), expectedReports: routes.length * selectedProfiles.length * modes.length * runs, rows, matrices, baseline: baselinePath, failures };
 if (rows.length !== result.expectedReports) failures.push(`Expected ${result.expectedReports} measured reports, received ${rows.length}`);
 writeFileSync(resolve(outputDir, "score-matrix.json"), `${JSON.stringify(result, null, 2)}\n`);
 for (const [mode, matrix] of Object.entries(matrices)) {
