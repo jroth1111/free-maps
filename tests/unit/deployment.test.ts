@@ -60,7 +60,7 @@ describe("deployment routing", () => {
     expect(preview?.vars?.PRODUCTION_ORIGIN).not.toBe(config.vars?.PRODUCTION_ORIGIN);
     expect(readFileSync(resolve("package.json"), "utf8")).toContain('"deploy:preview": "node scripts/deploy.mjs --preview"');
     const deployScript = readFileSync(resolve("scripts/deploy.mjs"), "utf8");
-    expect(deployScript).toContain('["--env", "preview"]');
+    expect(deployScript).toContain('"--env", preview.length ? "preview" : ""');
   });
 
   it("discovers demo themes before route enhancement", () => {

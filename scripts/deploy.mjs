@@ -22,4 +22,4 @@ if (preview.length > 1 || (preview.length === 1 && preview[0] !== "--preview")) 
   process.exit(1);
 }
 run("npm", ["run", "build"], { stdio: "inherit" });
-run("npx", ["wrangler", "deploy", ...(preview.length ? ["--env", "preview"] : []), "--var", `GIT_COMMIT:${commit}`], { stdio: "inherit" });
+run("npx", ["wrangler", "deploy", "--env", preview.length ? "preview" : "", "--var", `GIT_COMMIT:${commit}`], { stdio: "inherit" });
