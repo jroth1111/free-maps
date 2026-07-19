@@ -4,15 +4,24 @@ import { expect, test, type Page } from "@playwright/test";
 import { createDemoDataset } from "../../worker/dataset";
 
 const prepare = async (page: Page) => {
-  const requests: string[] = [];
+  const requests: {
+    urls: string[];
+    authorization: Array<{ url: string; value: string }>;
+  } = { urls: [], authorization: [] };
   await page.addInitScript(() => {
     (window as typeof window & { __freeMapsCls?: number }).__freeMapsCls = 0;
     new PerformanceObserver((list) => { for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) if (!entry.hadRecentInput) (window as typeof window & { __freeMapsCls: number }).__freeMapsCls += entry.value; }).observe({ type: "layout-shift", buffered: true });
   });
-  page.on("request", (request) => requests.push(request.url()));
+  page.on("request", (request) => {
+    requests.urls.push(request.url());
+    const authorization = request.headers().authorization;
+    if (authorization) requests.authorization.push({ url: request.url(), value: authorization });
+  });
   await page.route("**/api/v1/demo-dataset?size=*", async (route) => { const size = new URL(route.request().url()).searchParams.get("size") === "5000" ? 5000 : 250; await route.fulfill({ contentType: "application/json", body: JSON.stringify(createDemoDataset(size)) }); });
-  await page.route("**/api/tile-session", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ token: "test-token", expiresAt: Date.now() + 60_000 }) }));
-  await page.route("**/map-assets/heritage-light-v0.2.0.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#d9e6d4" } }] }) }));
+  await page.route("**/api/tile-session", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ token: "test-token", expiresAt: Date.now() + 300_000 }) }));
+  await page.route("**/map-assets/v0.3.0/heritage-light.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 8, sources: { protomaps: { type: "vector", url: "/tiles/melbourne.json" } }, layers: [{ id: "background", type: "background", paint: { "background-color": "#d9e6d4" } }, { id: "water", type: "fill", source: "protomaps", "source-layer": "water", paint: { "fill-color": "#9ecae1" } }] }) }));
+  await page.route("**/tiles/melbourne.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ tilejson: "3.0.0", scheme: "xyz", tiles: ["/tiles/test/{z}/{x}/{y}.mvt"], minzoom: 0, maxzoom: 15, bounds: [143.8, -38.8, 146.3, -37.1] }) }));
+  await page.route(/\/tiles\/test\/\d+\/\d+\/\d+\.mvt/, (route) => route.fulfill({ contentType: "application/vnd.mapbox-vector-tile", body: Buffer.alloc(0) }));
   return requests;
 };
 
@@ -26,13 +35,29 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
     await page.waitForTimeout(500);
     const shifts = await page.evaluate(() => (window as typeof window & { __freeMapsCls?: number }).__freeMapsCls ?? 0);
     expect(shifts).toBeLessThanOrEqual(0.01);
-    expect(requests.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com/i.test(url))).toBe(false);
+    expect(requests.urls.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
+    if (route !== "/react/") expect(requests.urls.some((url) => /\/assets\/react-[^/]+\.js/.test(url))).toBe(false);
+  });
+}
+
+for (const route of ["/embed/", "/vanilla/", "/react/"]) {
+  test(`${route} activates a real MapLibre canvas automatically`, async ({ page }) => {
+    const requests = await prepare(page); await page.goto(route);
+    await expect(page.locator("free-map-explorer canvas").first()).toBeVisible({ timeout: 30_000 });
+    if (route === "/embed/") {
+      const tileJsonRequests = () => requests.authorization.filter(({ url }) => new URL(url).pathname === "/tiles/melbourne.json").length;
+      await expect.poll(tileJsonRequests).toBe(1);
+      const surface = page.locator("free-map-surface");
+      await surface.scrollIntoViewIfNeeded();
+      await expect(surface.locator("canvas")).toBeVisible({ timeout: 30_000 });
+      await expect.poll(tileJsonRequests).toBe(2);
+    }
   });
 }
 
 test("explorer paints automatically, clusters, restores URL state, and supports keyboard navigation", async ({ page }, testInfo) => {
   const requests = await prepare(page);
-  await page.goto("/?q=Lantern&category=restaurants&sort=name&point=demo-250-1");
+  await page.goto("/?q=Lantern&category=japanese&sort=name&point=demo-250-1");
   const explorer = page.locator("free-map-explorer"); await expect(explorer).toBeVisible();
   const canvas = explorer.locator("canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
   const before = await canvas.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
@@ -41,15 +66,58 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const search = explorer.locator("input[type=search]"); await search.focus(); await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.type("Paper Crane"); await expect(page).toHaveURL(/q=Paper(?:\+|%20)Crane/);
   await page.keyboard.press("Tab"); expect(await page.evaluate(() => document.activeElement?.tagName)).toBeTruthy();
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
-  expect(requests.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
+  expect(requests.urls.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
+  expect(requests.authorization.length).toBeGreaterThan(0);
+  expect(requests.authorization.every(({ url, value }) => new URL(url).pathname.startsWith("/tiles/") && value === "Bearer test-token")).toBe(true);
+  expect(requests.urls.some((url) => new URL(url).searchParams.has("token"))).toBe(false);
+  const timing = await page.evaluate(() => {
+    const stable = Number(document.documentElement.dataset.stablePaint);
+    const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+    return { stable, mapStarts: resources.filter((entry) => /maplibre|heritage-light|tile-session|\/tiles\//i.test(entry.name)).map((entry) => entry.startTime) };
+  });
+  expect(timing.stable).toBeGreaterThan(0);
+  expect(timing.mapStarts.every((start) => start >= timing.stable)).toBe(true);
   const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
+});
+
+test("heritage themes and consumer token overrides are applied before activation", async ({ page }) => {
+  await prepare(page); await page.goto("/states/");
+  const light = page.locator("#theme"); const dark = page.locator("#theme-dark");
+  await expect(light).toHaveClass(/free-map-theme-heritage/); await expect(dark).toHaveClass(/free-map-theme-heritage-dark/);
+  const readTokens = () => page.evaluate(() => {
+    const read = (selector: string, token: string) => getComputedStyle(document.querySelector(selector)!).getPropertyValue(token).trim();
+    return { light: read("#theme", "--free-map-marker-selected"), dark: read("#theme-dark", "--free-map-marker-selected") };
+  });
+  await expect.poll(readTokens).toEqual({ light: "#8b2635", dark: "#f09aaa" });
+  const tokens = await readTokens();
+  expect(tokens.light).toBe("#8b2635"); expect(tokens.dark).toBe("#f09aaa");
+  await light.evaluate((element) => element.setAttribute("style", "--free-map-accent: #005fcc"));
+  expect(await light.evaluate((element) => getComputedStyle(element).getPropertyValue("--free-map-accent").trim())).toBe("#005fcc");
+  await light.scrollIntoViewIfNeeded();
+  await expect(light.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await dark.scrollIntoViewIfNeeded();
+  await expect(dark.locator("canvas")).toBeVisible({ timeout: 30_000 });
 });
 
 test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }) => {
   await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
-  const elapsed = await explorer.evaluate(async (element) => { const input = element.shadowRoot!.querySelector<HTMLInputElement>("input[type=search]")!; const start = performance.now(); await new Promise<void>((resolve) => { element.addEventListener("free-map-filter-change", () => requestAnimationFrame(() => resolve()), { once: true }); input.value = "Lantern"; input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true })); }); return performance.now() - start; });
-  expect(elapsed).toBeLessThan(200); await expect(page.locator("#diagnostics")).toContainText("matches");
+  const samples = await explorer.evaluate(async (element) => {
+    const input = element.shadowRoot!.querySelector<HTMLInputElement>("input[type=search]")!;
+    const timings: number[] = [];
+    for (let run = 0; run < 30; run++) {
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        element.addEventListener("free-map-filter-change", () => requestAnimationFrame(() => resolve()), { once: true });
+        input.value = run % 2 ? `Lantern ${run}` : "Lantern";
+        input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
+      });
+      timings.push(performance.now() - start);
+    }
+    return timings.sort((left, right) => left - right);
+  });
+  expect(samples[Math.floor(samples.length * .95)]).toBeLessThan(200);
+  await expect(page.locator("#diagnostics")).toContainText("matches");
 });
 
 test("unknown paths return a real 404 page", async ({ page }) => {

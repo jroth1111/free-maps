@@ -1,0 +1,22 @@
+{
+  "release": "v0.2.0",
+  "lighthouseVersion": "13.4.0",
+  "chromeVersion": "151.0.7922.34",
+  "matrix": [
+    { "route": "/", "profile": "mobile", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/", "profile": "ipad", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/", "profile": "desktop", "medians": { "performance": 0.97, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/embed/", "profile": "mobile", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/embed/", "profile": "ipad", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/embed/", "profile": "desktop", "medians": { "performance": 0.96, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/states/", "profile": "mobile", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/states/", "profile": "ipad", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/states/", "profile": "desktop", "medians": { "performance": 0.98, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/vanilla/", "profile": "mobile", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/vanilla/", "profile": "ipad", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/vanilla/", "profile": "desktop", "medians": { "performance": 0.97, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/react/", "profile": "mobile", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/react/", "profile": "ipad", "medians": { "performance": 1, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } },
+    { "route": "/react/", "profile": "desktop", "medians": { "performance": 0.96, "accessibility": 1, "best-practices": 1, "seo": 1, "agentic-browsing": 1 } }
+  ]
+}

@@ -13,10 +13,10 @@ main { margin: 0 auto; max-width: 1440px; padding: clamp(1.25rem, 4vw, 4rem); }
 .intro p:last-child { color: #665f57; font-size: 1.1rem; max-width: 65ch; }
 .eyebrow { font-size: .78rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .demo-grid, .state-grid { display: grid; gap: 2rem; }
+.embed-grid { grid-template-columns: minmax(0, 1fr); gap: 8rem; }
 .demo-grid article, .state-grid article { min-width: 0; }
 article h2 { font-family: Georgia, serif; }
 .state-grid free-map-explorer { max-height: 30rem; overflow: auto; }
-.night free-map-explorer { --free-map-paper: #1c2328; --free-map-surface: #202a31; --free-map-surface-low: #172027; --free-map-border: #43515b; --free-map-text: #f6f1e8; --free-map-muted: #c1c7ca; --free-map-accent: #e88da0; --free-map-gold: #e2ba5f; }
 pre { background: #202a31; color: #f6f1e8; overflow: auto; padding: 1rem; }
 .diagnostics { background: #fffdf9; border: 1px solid #d9d1c4; font-variant-numeric: tabular-nums; margin-bottom: 1rem; padding: .75rem 1rem; }
 footer { border-top: 1px solid #d9d1c4; color: #665f57; font-size: .875rem; padding: 2rem clamp(1rem, 4vw, 4rem); }
@@ -27,8 +27,7 @@ nav a[aria-current="page"] { color: #8b2635; text-decoration: underline; text-un
 free-map-explorer, free-map-surface, #react-root { display: block; min-height: 36rem; contain-intrinsic-size: 720px; }
 free-map-explorer[compact], free-map-surface, .demo-grid #react-root { min-height: 24rem; contain-intrinsic-size: 384px; }
 .static-map-reserve { min-height: inherit; border: 1px solid #d9d1c4; background: linear-gradient(135deg, #f2eee6, #e9e6df); }
-.heritage { --free-map-font-sans: "Hanken Grotesk", "Hanken Grotesk Fallback", system-ui, sans-serif; --free-map-font-serif: "Literata", "Literata Fallback", Georgia, serif; }
 footer ul { display: grid; gap: .4rem 2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding-left: 1.2rem; }
 footer p { color: #22201e; font-weight: 700; margin: 1rem 0 0; }
-@media (min-width: 900px) { .demo-grid { grid-template-columns: 1fr 1fr; } .state-grid { grid-template-columns: 1fr 1fr; } .state-grid article:last-child { grid-column: 1 / -1; } }
+@media (min-width: 900px) { .demo-grid:not(.embed-grid) { grid-template-columns: 1fr 1fr; } .state-grid { grid-template-columns: 1fr 1fr; } .state-grid article:last-child { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .site-header { align-items: start; flex-direction: column; gap: .6rem; } nav { max-width: 100%; width: 100%; } main { padding-top: 2rem; } footer ul { grid-template-columns: 1fr; } }
