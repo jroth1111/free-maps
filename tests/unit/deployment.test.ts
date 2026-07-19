@@ -32,6 +32,7 @@ describe("deployment routing", () => {
     expect(siteCss).toContain('@import "../src/themes/atlas.css"');
     for (const theme of ["atlas-dark", "signal", "signal-dark", "contrast"]) expect(statesCss).toContain(`@import "../src/themes/${theme}.css"`);
     expect(statesHtml).toContain('<link rel="stylesheet" href="/states.css">');
+    expect(statesHtml).not.toMatch(/<free-map-explorer(?![^>]*\brole="region")[^>]*\baria-label=/);
     expect(shared).not.toMatch(/themes\/.*\.css/);
     expect(states).not.toMatch(/themes\/.*\.css/);
   });
