@@ -28,11 +28,16 @@ for (const file of tracked) {
 const allowedCommitEmail = /^(?:noreply@github\.com|noreply@anthropic\.com|codex@openai\.com|\d+\+[A-Z0-9-]+@users\.noreply\.github\.com)$/i;
 const requestedHead = process.env.CHECK_SECRETS_HEAD ?? "HEAD";
 const parentLine = execFileSync("git", ["rev-list", "--parents", "-n", "1", requestedHead], { encoding: "utf8" }).trim().split(" ");
-// pull_request workflows check out a synthetic merge commit. Its author is
-// GitHub account metadata, not repository content or a branch commit, so scan
-// the PR head (second parent) instead.
-const scanHead = process.env.GITHUB_EVENT_NAME === "pull_request" && parentLine.length >= 3 ? parentLine[2] : parentLine[0];
-const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "origin/main";
+// Pull-request workflows check out a synthetic merge commit, and a GitHub
+// merge produces the same topology on the subsequent push to the base branch.
+// The merge commit identity is account metadata rather than source history, so
+// scan the merged branch from its first parent to its second parent in both
+// contexts. Ordinary pushes continue to scan their resolved head.
+const scansMergedBranch = ["pull_request", "push"].includes(process.env.GITHUB_EVENT_NAME ?? "") && parentLine.length >= 3;
+const scanHead = scansMergedBranch ? parentLine[2] : parentLine[0];
+const baseRef = scansMergedBranch
+  ? parentLine[1]
+  : process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "origin/main";
 let revisions = [scanHead];
 try {
   const base = execFileSync("git", ["merge-base", scanHead, baseRef], { encoding: "utf8" }).trim();

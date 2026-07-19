@@ -78,7 +78,7 @@ describe("deployment routing", () => {
     expect(states).not.toMatch(/themes\/.*\.css/);
   });
 
-  it("accepts the Codex role identity for synthetic PR heads while rejecting personal commit email", () => {
+  it("accepts role identities while rejecting personal source-commit email", () => {
     const tree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
     const base = execFileSync("git", ["rev-parse", "origin/main"], { encoding: "utf8" }).trim();
     const createCommit = (email: string) => execFileSync("git", ["commit-tree", tree, "-p", base], {
@@ -106,5 +106,42 @@ describe("deployment routing", () => {
     expect(rejected.status).toBe(1);
     expect(rejected.stderr).toContain("author email is not a no-reply identity");
     expect(rejected.stderr).toContain("committer email is not a no-reply identity");
+  });
+
+  it("scans source commits instead of GitHub merge metadata after a main push", () => {
+    const tree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+    const base = execFileSync("git", ["rev-parse", "origin/main"], { encoding: "utf8" }).trim();
+    const createCommit = (parents: string[], email: string, subject: string) => execFileSync("git", [
+      "commit-tree", tree, ...parents.flatMap((parent) => ["-p", parent]),
+    ], {
+      encoding: "utf8",
+      input: `${subject}\n`,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Automated fixture",
+        GIT_AUTHOR_EMAIL: email,
+        GIT_AUTHOR_DATE: "2026-01-01T00:00:00Z",
+        GIT_COMMITTER_NAME: "Automated fixture",
+        GIT_COMMITTER_EMAIL: email,
+        GIT_COMMITTER_DATE: "2026-01-01T00:00:00Z",
+      },
+    }).trim();
+    const run = (head: string) => spawnSync(process.execPath, [resolve("scripts/check-secrets.mjs")], {
+      encoding: "utf8",
+      env: { ...process.env, CHECK_SECRETS_HEAD: head, GITHUB_BASE_REF: "", GITHUB_EVENT_NAME: "push" },
+    });
+
+    const roleEmail = ["codex", "openai.com"].join("@");
+    const personalEmail = ["person", "example.test"].join("@");
+    const acceptedSource = createCommit([base], roleEmail, "accepted source");
+    const acceptedMerge = createCommit([base, acceptedSource], personalEmail, "merge metadata");
+    expect(run(acceptedMerge)).toMatchObject({ status: 0 });
+
+    const rejectedSource = createCommit([base], personalEmail, "rejected source");
+    const rejectedMerge = createCommit([base, rejectedSource], personalEmail, "merge metadata");
+    const rejected = run(rejectedMerge);
+    expect(rejected.status).toBe(1);
+    expect(rejected.stderr).toContain(`${rejectedSource}:author email is not a no-reply identity`);
+    expect(rejected.stderr).not.toContain(`${rejectedMerge}:author email is not a no-reply identity`);
   });
 });
