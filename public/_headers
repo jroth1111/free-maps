@@ -1,38 +1,73 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   Permissions-Policy: geolocation=(), camera=(), microphone=()
 
+/fonts/Noto*
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+
+/fonts/ui/*
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+
+/map-assets/heritage-light*
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+
+/fonts/v0.3.0/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable
+
+/map-assets/v0.3.0/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable
 
-/fonts/*
-  Cache-Control: public, max-age=31536000, immutable
+/favicon.svg
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
 
-/sprites/*
-  Cache-Control: public, max-age=31536000, immutable
+/robots.txt
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
 
-/map-assets/*
-  Cache-Control: public, max-age=31536000, immutable
+/sitemap.xml
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+
+/llms.txt
+  Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
 
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /embed/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /states/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /vanilla/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /react/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
 
 /stress/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900

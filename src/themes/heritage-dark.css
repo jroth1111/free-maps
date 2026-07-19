@@ -1,0 +1,43 @@
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+  src: url("/fonts/v0.3.0/ui/hanken-grotesk-latin-wght-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: optional;
+  src: url("/fonts/v0.3.0/ui/literata-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+:where(.free-map-theme-heritage-dark) {
+  color-scheme: dark;
+  --free-map-font-family: "Hanken Grotesk", Arial, system-ui, sans-serif;
+  --free-map-heading-font-family: "Literata", Georgia, serif;
+  --free-map-surface-canvas: #151c21;
+  --free-map-surface: #202a31;
+  --free-map-surface-muted: #172027;
+  --free-map-text: #f6f1e8;
+  --free-map-text-muted: #c1c7ca;
+  --free-map-border-color: #52616c;
+  --free-map-accent: #f09aaa;
+  --free-map-accent-hover: #ffc2cd;
+  --free-map-on-accent: #241116;
+  --free-map-focus: #f4b4c0;
+  --free-map-control-surface: #26333c;
+  --free-map-control-text: #f6f1e8;
+  --free-map-control-border: #657680;
+  --free-map-marker: #e2ba5f;
+  --free-map-marker-selected: #f09aaa;
+  --free-map-marker-stroke: #202a31;
+  --free-map-cluster: #e2ba5f;
+  --free-map-cluster-medium: #c89432;
+  --free-map-cluster-large: #f09aaa;
+  --free-map-cluster-text: #151c21;
+  --free-map-radius-small: 0.25rem;
+  --free-map-radius: 0.4rem;
+  --free-map-shadow-control: 0 2px 10px rgb(0 0 0 / 0.38);
+}

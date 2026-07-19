@@ -3,7 +3,16 @@ import { defineFreeMapElements } from "../src/element";
 
 export const renderer: MapRendererFactory = async () => {
   const { MapLibreRenderer } = await import("../src/maplibre");
-  return new MapLibreRenderer({ tileJsonUrl: "/tiles/melbourne.json", tileSessionEndpoint: "/api/tile-session", workerUrl: "/assets/maplibre-gl-csp-worker-v5.7.1.js", devicePixelRatioCeiling: 1.5, fadeDuration: 0, sharedWorkerPool: true });
+  return new MapLibreRenderer({
+    styleUrl: "/map-assets/v0.3.0/heritage-light.json",
+    styleIsKnownValid: true,
+    tileJsonUrl: "/tiles/melbourne.json",
+    tileSession: { endpoint: "/api/tile-session", protectedUrlPrefix: "/tiles/" },
+    workerUrl: "/assets/maplibre-gl-csp-worker-v5.24.0.js",
+    devicePixelRatioCeiling: 1.5,
+    fadeDuration: 0,
+    sharedWorkerPool: true,
+  });
 };
 export const options: FreeMapElementOptions = {
   externalMapLinkBuilder: (point) => point.position ? openStreetMapUrl(point.position.lat, point.position.lng) : undefined,

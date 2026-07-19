@@ -1,6 +1,6 @@
 {
   "name": "free-maps",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Framework-neutral MapLibre explorer components with Cloudflare PMTiles helpers",
   "type": "module",
   "license": "MIT",
@@ -49,20 +49,24 @@
       "types": "./dist/cloudflare.d.ts",
       "import": "./dist/cloudflare.js"
     },
-    "./heritage.css": "./dist/heritage.css",
+    "./themes/heritage.css": "./dist/themes/heritage.css",
+    "./themes/heritage-dark.css": "./dist/themes/heritage-dark.css",
     "./package.json": "./package.json"
   },
   "peerDependencies": {
+    "maplibre-gl": ">=5.7.1 <6",
     "react": ">=18"
   },
   "peerDependenciesMeta": {
+    "maplibre-gl": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }
   },
   "dependencies": {
     "lit": "^3.3.1",
-    "maplibre-gl": "^5.7.1",
     "pmtiles": "^4.3.0"
   },
   "devDependencies": {
@@ -85,6 +89,7 @@
     "jsdom": "^26.1.0",
     "license-checker-rseidelsohn": "^4.4.2",
     "lighthouse": "13.4.0",
+    "maplibre-gl": "5.24.0",
     "node-addon-api": "^8.5.0",
     "node-gyp": "^11.4.2",
     "react": "^19.1.1",
@@ -108,6 +113,7 @@
     "test:worker": "vitest run --config vitest.worker.config.ts",
     "test:e2e": "playwright test",
     "lighthouse:matrix": "node scripts/run-lighthouse-matrix.mjs",
+    "cache:verify": "node scripts/verify-cache.mjs",
     "test:all": "npm run lint && npm run typecheck && npm run test && npm run test:worker && npm run build && npm run check:budgets && npm run check:boundaries && npm run check:forbidden && npm run package:verify",
     "package:pack": "npm pack --pack-destination artifacts",
     "package:verify": "node scripts/verify-package.mjs",

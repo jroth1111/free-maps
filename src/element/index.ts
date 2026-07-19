@@ -10,4 +10,3 @@ export function defineFreeMapElements(options: { renderer?: MapRendererFactory |
 }
 
 export { FreeMapExplorerElement, FreeMapSurfaceElement };
-export { heritageLightStyles } from "./styles";

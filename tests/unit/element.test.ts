@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { defineFreeMapElements, type FreeMapExplorerElement } from "../../src/element";
 import type { FreeMapDataset, MapRenderer, MapRendererState } from "../../src/core";
 import { dataset } from "./core.test";
+import { SerialMountScheduler } from "../../src/element/scheduler";
 
 class FakeRenderer implements MapRenderer {
   mounts = 0; updates = 0; fits = 0; resets = 0; destroys = 0; state?: MapRendererState;
@@ -17,7 +18,7 @@ const elementWith = (renderer: FakeRenderer, activation: "eager" | "manual" = "e
 beforeAll(() => defineFreeMapElements());
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
-describe("v0.2 element lifecycle", () => {
+describe("element lifecycle", () => {
   it("does not register as an import side effect and supports explicit registration", async () => {
     expect(customElements.get("free-map-explorer")).toBeDefined();
     expect(customElements.get("free-map-surface")).toBeDefined();
@@ -65,5 +66,25 @@ describe("v0.2 element lifecycle", () => {
     const many = { ...dataset, id: "many", points: Array.from({ length: 5000 }, (_, index) => ({ ...dataset.points[0]!, id: `p-${index}`, title: `Place ${index}` })) };
     const element = elementWith(new FakeRenderer()); element.data = many; document.body.append(element); await settle(element);
     expect(element.shadowRoot?.querySelectorAll(".row").length).toBeLessThan(60);
+  });
+
+  it("coalesces same-turn renderer updates", async () => {
+    const renderer = new FakeRenderer(); const element = elementWith(renderer); element.data = dataset; document.body.append(element); await element.activate(); await settle(element);
+    const before = renderer.updates;
+    element.query = "Cafe"; element.category = "japanese"; element.sort = "name";
+    await settle(element);
+    expect(renderer.updates - before).toBeLessThanOrEqual(2);
+  });
+
+  it("holds the scheduler slot through completion and disposes queued work on abort", async () => {
+    const scheduler = new SerialMountScheduler(); const events: string[] = [];
+    let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; });
+    const firstController = new AbortController(); const secondController = new AbortController();
+    const first = scheduler.schedule(async () => { events.push("first-start"); await gate; events.push("first-end"); }, firstController.signal);
+    const second = scheduler.schedule(async () => { events.push("second-start"); }, secondController.signal);
+    secondController.abort(); await Promise.resolve();
+    expect(events).toEqual(["first-start"]); release(); await first;
+    await expect(second).rejects.toMatchObject({ name: "AbortError" });
+    expect(events).toEqual(["first-start", "first-end"]); expect(scheduler.pending).toBe(0);
   });
 });
