@@ -24,14 +24,14 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   await expect(explorer).toBeVisible();
   await page.evaluate(() => customElements.whenDefined("free-map-explorer"));
   await explorer.evaluate((element) => (element as HTMLElement & { activate(): Promise<void> }).activate());
-  const canvas = explorer.locator("canvas");
+  const canvas = explorer.locator(".free-map-vector-canvas");
   await expect(canvas).toBeVisible({ timeout: 60_000 });
   await expect(canvas).toHaveAttribute("data-tiles-painted", "true", { timeout: 60_000 });
   await expect(explorer.locator(".map-state")).toBeHidden({ timeout: 60_000 });
   await expect(explorer.getByText("Protomaps", { exact: true })).toBeVisible();
   await expect(explorer.getByText("© OpenStreetMap", { exact: true })).toBeVisible();
 
-  const image = await canvas.screenshot({ path: testInfo.outputPath("deployed-map.png") });
+  const image = await explorer.locator(".map").screenshot({ path: testInfo.outputPath("deployed-map.png") });
   expect(image.byteLength).toBeGreaterThan(10_000);
   expect(requests.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
   expect(tileResponses.some((response) => response.url.endsWith("/tiles/melbourne.json") && response.status === 200)).toBe(true);

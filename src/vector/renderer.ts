@@ -118,8 +118,8 @@ function replaceTileTemplate(template: string, z: number, x: number, y: number):
 export class VectorCanvasRenderer implements MapRenderer {
   private canvas?: HTMLCanvasElement;
   private context?: CanvasRenderingContext2D;
-  private basemapCanvas?: HTMLCanvasElement;
-  private basemapContext?: CanvasRenderingContext2D;
+  private overlayCanvas?: HTMLCanvasElement;
+  private overlayContext?: CanvasRenderingContext2D;
   private basemapDirty = true;
   private state?: MapRendererState;
   private onSelect?: (id: string) => void;
@@ -159,12 +159,17 @@ export class VectorCanvasRenderer implements MapRenderer {
     canvas.setAttribute("aria-label", `${state.dataset.label} interactive map`);
     canvas.tabIndex = 0;
     Object.assign(canvas.style, { display: "block", height: "100%", width: "100%", touchAction: "none" });
-    container.replaceChildren(canvas);
+    const overlay = document.createElement("canvas");
+    overlay.className = "free-map-vector-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+    Object.assign(overlay.style, { display: "block", height: "100%", inset: "0", pointerEvents: "none", position: "absolute", width: "100%", zIndex: "1" });
+    container.replaceChildren(canvas, overlay);
     this.canvas = canvas;
     this.context = canvas.getContext("2d", { alpha: false }) ?? undefined;
     if (!this.context) throw new Error("Canvas 2D is unavailable");
-    this.basemapCanvas = document.createElement("canvas");
-    this.basemapContext = this.basemapCanvas.getContext("2d", { alpha: false }) ?? undefined;
+    this.overlayCanvas = overlay;
+    this.overlayContext = overlay.getContext("2d") ?? undefined;
+    if (!this.overlayContext) throw new Error("Canvas 2D is unavailable");
     this.installChrome(container);
     this.installInteraction();
     this.resize = new ResizeObserver(() => { if (this.sizeCanvas()) { this.draw(); this.requestVisibleTiles(); } });
@@ -217,17 +222,18 @@ export class VectorCanvasRenderer implements MapRenderer {
     this.restoreContainerPosition?.();
     this.restoreContainerPosition = undefined;
     this.canvas?.remove();
+    this.overlayCanvas?.remove();
     this.controls?.remove();
     this.attribution?.remove();
     this.canvas = undefined;
     this.context = undefined;
-    this.basemapCanvas = undefined;
-    this.basemapContext = undefined;
+    this.overlayCanvas = undefined;
+    this.overlayContext = undefined;
     this.basemapDirty = true;
   }
 
   private sizeCanvas(): boolean {
-    if (!this.canvas || !this.context) return false;
+    if (!this.canvas || !this.context || !this.overlayCanvas || !this.overlayContext) return false;
     const ratio = Math.min(globalThis.devicePixelRatio || 1, this.options.devicePixelRatioCeiling ?? 1.5);
     const width = Math.max(1, Math.round(this.canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(this.canvas.clientHeight * ratio));
@@ -235,11 +241,12 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (changed) {
       this.canvas.width = width;
       this.canvas.height = height;
-      if (this.basemapCanvas) { this.basemapCanvas.width = width; this.basemapCanvas.height = height; }
+      this.overlayCanvas.width = width;
+      this.overlayCanvas.height = height;
       this.invalidateBasemap();
     }
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    this.basemapContext?.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.overlayContext.setTransform(ratio, 0, 0, ratio, 0, 0);
     return changed;
   }
 
@@ -438,35 +445,23 @@ export class VectorCanvasRenderer implements MapRenderer {
 
   private invalidateBasemap(): void { this.basemapDirty = true; }
 
-  private drawBasemap(width: number, height: number): boolean {
-    const canvas = this.basemapCanvas; const context = this.basemapContext;
-    if (!canvas || !context) return false;
+  private draw(): void {
+    const canvas = this.canvas; const context = this.context; const overlay = this.overlayContext; const state = this.state;
+    if (!canvas || !context || !overlay || !state) return;
+    const width = canvas.clientWidth; const height = canvas.clientHeight;
+    const styles = getComputedStyle(canvas);
     if (this.basemapDirty) {
       context.clearRect(0, 0, width, height);
       context.fillStyle = this.options.basemapStyle.background;
       context.fillRect(0, 0, width, height);
       for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
+      context.fillStyle = cssToken(styles, "--free-map-text-muted", "#665f57");
+      context.font = "10px system-ui"; context.textAlign = "right"; context.textBaseline = "bottom";
+      context.fillText(`z${this.zoom.toFixed(0)}`, width - 46, height - 6);
       this.basemapDirty = false;
     }
-    return true;
-  }
-
-  private draw(): void {
-    const canvas = this.canvas; const context = this.context; const state = this.state;
-    if (!canvas || !context || !state) return;
-    const width = canvas.clientWidth; const height = canvas.clientHeight;
-    const styles = getComputedStyle(canvas);
-    context.clearRect(0, 0, width, height);
-    if (this.drawBasemap(width, height) && this.basemapCanvas) context.drawImage(this.basemapCanvas, 0, 0, width, height);
-    else {
-      context.fillStyle = this.options.basemapStyle.background;
-      context.fillRect(0, 0, width, height);
-      for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
-    }
-    this.drawPoints(context, state.points, state.selectedId, width, height, styles);
-    context.fillStyle = cssToken(styles, "--free-map-text-muted", "#665f57");
-    context.font = "10px system-ui"; context.textAlign = "right"; context.textBaseline = "bottom";
-    context.fillText(`z${this.zoom.toFixed(0)}`, width - 46, height - 6);
+    overlay.clearRect(0, 0, width, height);
+    this.drawPoints(overlay, state.points, state.selectedId, width, height, styles);
     canvas.dataset.zoom = this.zoom.toFixed(0);
   }
 

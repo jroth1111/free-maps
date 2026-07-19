@@ -12,7 +12,7 @@ const state: MapRendererState = {
 };
 
 const context = {
-  arc: vi.fn(), beginPath: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), fill: vi.fn(), fillRect: vi.fn(), fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), setTransform: vi.fn(), stroke: vi.fn(),
+  arc: vi.fn(), beginPath: vi.fn(), clearRect: vi.fn(), fill: vi.fn(), fillRect: vi.fn(), fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), setTransform: vi.fn(), stroke: vi.fn(),
   fillStyle: "", strokeStyle: "", font: "", lineWidth: 0, textAlign: "start", textBaseline: "alphabetic",
 };
 
@@ -65,7 +65,7 @@ describe("vector canvas renderer", () => {
     const basemapPaints = context.fillRect.mock.calls.length;
     await renderer.update({ ...state, points: state.points.slice(0, 1) });
     expect(context.fillRect.mock.calls).toHaveLength(basemapPaints);
-    expect(context.drawImage).toHaveBeenCalled();
+    expect(container.querySelectorAll("canvas")).toHaveLength(2);
     const zoomButton = container.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')!;
     zoomButton.click(); expect(viewports.at(-1)?.cause).toBe("user");
     expect(context.fillRect.mock.calls.length).toBeGreaterThan(basemapPaints);

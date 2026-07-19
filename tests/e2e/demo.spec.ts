@@ -62,7 +62,7 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
 for (const route of ["/embed/", "/vanilla/", "/react/"]) {
   test(`${route} activates a real vector-tile canvas automatically`, async ({ page }) => {
     const requests = await prepare(page); await page.goto(route);
-    const canvas = page.locator("free-map-explorer canvas").first();
+    const canvas = page.locator("free-map-explorer .free-map-vector-canvas").first();
     await expect(canvas).toBeVisible({ timeout: 30_000 });
     await expect(canvas).toHaveAttribute("data-tiles-painted", "true");
     if (route === "/embed/") {
@@ -70,7 +70,7 @@ for (const route of ["/embed/", "/vanilla/", "/react/"]) {
       await expect.poll(tileJsonRequests).toBeGreaterThanOrEqual(1);
       const surface = page.locator("free-map-surface");
       await surface.scrollIntoViewIfNeeded();
-      const surfaceCanvas = surface.locator("canvas");
+      const surfaceCanvas = surface.locator(".free-map-vector-canvas");
       await expect(surfaceCanvas).toBeVisible({ timeout: 30_000 });
       const [surfaceBox, canvasBox] = await Promise.all([surface.boundingBox(), surfaceCanvas.boundingBox()]);
       expect(surfaceBox && canvasBox).toBeTruthy();
@@ -85,10 +85,11 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const requests = await prepare(page);
   await page.goto("/?q=Lantern&category=japanese&sort=name&point=demo-250-1");
   const explorer = page.locator("free-map-explorer"); await expect(explorer).toBeVisible();
-  const canvas = explorer.locator("canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
-  const before = await canvas.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
+  const canvas = explorer.locator(".free-map-vector-canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
+  const map = explorer.locator(".map");
+  const before = await map.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
   const box = await canvas.boundingBox(); expect(box).toBeTruthy(); await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.waitForTimeout(400);
-  const after = await canvas.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
+  const after = await map.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
   const initialPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
   const keyboardResult = explorer.locator(".row button").nth(1); await keyboardResult.focus(); await page.keyboard.press("Enter");
   const keyboardPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
@@ -127,14 +128,14 @@ test("Atlas themes and consumer token overrides are applied before activation", 
   await light.evaluate((element) => element.setAttribute("style", "--free-map-accent: #005fcc"));
   expect(await light.evaluate((element) => getComputedStyle(element).getPropertyValue("--free-map-accent").trim())).toBe("#005fcc");
   await light.scrollIntoViewIfNeeded();
-  await expect(light.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(light.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
   await dark.scrollIntoViewIfNeeded();
-  await expect(dark.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(dark.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
 test("responsive rail or sheet, quick filters, URL restoration, and search-area opt-in work at the pinned viewport", async ({ page }, testInfo) => {
   await prepare(page); await page.goto("/?filter=open-now");
-  const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  const explorer = page.locator("free-map-explorer"); await expect(explorer.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
   await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Open now" })).toHaveAttribute("aria-pressed", "true");
   if (testInfo.project.name === "mobile-412") {
     const panel = explorer.locator('[part~="sheet"]'); const handle = explorer.locator('[part~="sheet-handle"]');
@@ -147,7 +148,7 @@ test("responsive rail or sheet, quick filters, URL restoration, and search-area 
     const panel = explorer.locator('[part~="rail"]'); const toggle = explorer.locator('[part~="rail-toggle"]');
     await expect(toggle).toBeVisible(); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "true"); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "false");
   }
-  const canvas = explorer.locator("canvas"); await canvas.hover(); await page.mouse.wheel(0, -100); await expect(explorer.locator('[part~="search-area-button"]')).toBeVisible();
+  const canvas = explorer.locator(".free-map-vector-canvas"); await canvas.hover(); await page.mouse.wheel(0, -100); await expect(explorer.locator('[part~="search-area-button"]')).toBeVisible();
   const searchEvent = explorer.evaluate((element) => new Promise((resolve) => element.addEventListener("free-map-search-area", (event) => resolve((event as CustomEvent).detail), { once: true })));
   await explorer.locator('[part~="search-area-button"]').click(); await expect(searchEvent).resolves.toEqual(expect.objectContaining({ cause: "user", bounds: expect.any(Array), center: expect.any(Object), zoom: expect.any(Number) }));
   await expect(explorer.locator('[part~="search-area-button"]')).toHaveCount(0);
@@ -168,7 +169,7 @@ test("all static themes and forced-colors tokens remain available", async ({ pag
 });
 
 test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }, testInfo) => {
-  await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
   const samples = await explorer.evaluate(async (element) => {
     const input = element.shadowRoot!.querySelector<HTMLInputElement>("input[type=search]")!;
