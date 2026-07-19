@@ -26,7 +26,7 @@ const prepare = async (page: Page) => {
   });
   await page.route("**/api/v1/demo-dataset?size=*", async (route) => { const size = new URL(route.request().url()).searchParams.get("size") === "5000" ? 5000 : 250; await route.fulfill({ contentType: "application/json", body: JSON.stringify(createDemoDataset(size)) }); });
   await page.route("**/api/tile-session", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ token: "test-token", expiresAt: Date.now() + 300_000 }) }));
-  await page.route("**/map-assets/v0.3.0/heritage-light.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 8, sources: { protomaps: { type: "vector", url: "/tiles/melbourne.json" } }, layers: [{ id: "background", type: "background", paint: { "background-color": "#d9e6d4" } }, { id: "water", type: "fill", source: "protomaps", "source-layer": "water", paint: { "fill-color": "#9ecae1" } }] }) }));
+  await page.route("**/map-assets/v0.3.0/atlas-light.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 8, sources: { protomaps: { type: "vector", url: "/tiles/melbourne.json" } }, layers: [{ id: "background", type: "background", paint: { "background-color": "#d9e6d4" } }, { id: "water", type: "fill", source: "protomaps", "source-layer": "water", paint: { "fill-color": "#9ecae1" } }] }) }));
   await page.route("**/tiles/melbourne.json", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ tilejson: "3.0.0", scheme: "xyz", tiles: ["/tiles/test/{z}/{x}/{y}.mvt"], minzoom: 0, maxzoom: 15, bounds: [143.8, -38.8, 146.3, -37.1] }) }));
   await page.route(/\/tiles\/test\/\d+\/\d+\/\d+\.mvt/, (route) => route.fulfill({ contentType: "application/vnd.mapbox-vector-tile", body: Buffer.alloc(0) }));
   return requests;
@@ -96,17 +96,17 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const timing = await page.evaluate(() => {
     const stable = Number(document.documentElement.dataset.stablePaint);
     const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-    return { stable, mapStarts: resources.filter((entry) => /maplibre|heritage-light|tile-session|\/tiles\//i.test(entry.name)).map((entry) => entry.startTime) };
+    return { stable, mapStarts: resources.filter((entry) => /maplibre|atlas-light|tile-session|\/tiles\//i.test(entry.name)).map((entry) => entry.startTime) };
   });
   expect(timing.stable).toBeGreaterThan(0);
   expect(timing.mapStarts.every((start) => start >= timing.stable)).toBe(true);
   const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
 });
 
-test("heritage themes and consumer token overrides are applied before activation", async ({ page }) => {
+test("Atlas themes and consumer token overrides are applied before activation", async ({ page }) => {
   await prepare(page); await page.goto("/states/");
   const light = page.locator("#theme"); const dark = page.locator("#theme-dark");
-  await expect(light).toHaveClass(/free-map-theme-heritage/); await expect(dark).toHaveClass(/free-map-theme-heritage-dark/);
+  await expect(light).toHaveClass(/free-map-theme-atlas/); await expect(dark).toHaveClass(/free-map-theme-atlas-dark/);
   const readTokens = () => page.evaluate(() => {
     const read = (selector: string, token: string) => getComputedStyle(document.querySelector(selector)!).getPropertyValue(token).trim();
     return { light: read("#theme", "--free-map-marker-selected"), dark: read("#theme-dark", "--free-map-marker-selected") };

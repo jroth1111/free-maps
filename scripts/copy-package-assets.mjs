@@ -14,7 +14,7 @@ for (const [source, name] of assets) {
   copyFileSync(resolve(root, source), resolve(root, "dist/assets", name));
   copyFileSync(resolve(root, source), resolve(root, "public/fonts/v0.3.0/ui", name));
 }
-for (const name of ["heritage.css", "heritage-dark.css"]) {
+for (const name of ["atlas.css", "atlas-dark.css"]) {
   const css = readFileSync(resolve(root, "src/themes", name), "utf8").replaceAll("/fonts/v0.3.0/ui/", "../assets/");
   writeFileSync(resolve(root, "dist/themes", name), css);
 }

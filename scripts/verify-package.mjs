@@ -7,8 +7,7 @@ mkdirSync("artifacts", { recursive: true });
 for (const name of ["free-maps-0.3.0.tgz", "free-maps-0.3.0.tgz.sha256"]) rmSync(resolve("artifacts", name), { force: true });
 const packed = JSON.parse(execFileSync("npm", ["pack", "--json", "--pack-destination", "artifacts"], { encoding: "utf8" }))[0];
 const tarball = resolve("artifacts", packed.filename);
-for (const entry of ["package/dist/core.js", "package/dist/cloudflare.js", "package/dist/element.js", "package/dist/react.js", "package/dist/themes/heritage.css", "package/dist/themes/heritage-dark.css"]) if (!packed.files.some((file) => file.path === entry.slice(8))) throw new Error(`Package is missing ${entry}`);
-if (packed.files.some((file) => file.path === "dist/heritage.css")) throw new Error("Unexpected legacy theme asset dist/heritage.css");
+for (const entry of ["package/dist/core.js", "package/dist/cloudflare.js", "package/dist/element.js", "package/dist/react.js", "package/dist/themes/atlas.css", "package/dist/themes/atlas-dark.css"]) if (!packed.files.some((file) => file.path === entry.slice(8))) throw new Error(`Package is missing ${entry}`);
 for (const file of ["dist/core.js", "dist/cloudflare.js", "dist/element.js"]) {
   const text = readFileSync(file, "utf8");
   if (/maplibre-gl|from\s*["']react/.test(text)) throw new Error(`${file} pulls MapLibre or React`);
@@ -19,7 +18,7 @@ try {
     const fixture = join(root, kind); mkdirSync(fixture);
     writeFileSync(join(fixture, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: { "free-maps": `file:${tarball}`, typescript: "^5.9.2", ...(kind === "react" ? { react: "^19.1.1", "@types/react": "^19.1.10", "maplibre-gl": "5.24.0" } : {}) } }));
     writeFileSync(join(fixture, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, module: "ESNext", moduleResolution: "Bundler", target: "ES2022", lib: ["ES2022", "DOM"], jsx: "react-jsx", skipLibCheck: true }, include: ["index.ts", "index.tsx"] }));
-    writeFileSync(join(fixture, kind === "react" ? "index.tsx" : "index.ts"), kind === "react" ? `import { FreeMapExplorer } from "free-maps/react"; import { createMapLibreRenderer } from "free-maps/maplibre"; import type { FreeMapDataset } from "free-maps/core"; declare const data: FreeMapDataset; <FreeMapExplorer data={data} renderer={createMapLibreRenderer({ workerUrl: "/worker-v5.js", style: { version: 8, sources: {}, layers: [] } })} />;` : `import { parseFreeMapDataset } from "free-maps/core"; import { defineFreeMapElements } from "free-maps/element"; import type { PmtilesHandlerOptions } from "free-maps/cloudflare"; import "free-maps/themes/heritage.css"; defineFreeMapElements(); void parseFreeMapDataset; type Options = PmtilesHandlerOptions;`);
+    writeFileSync(join(fixture, kind === "react" ? "index.tsx" : "index.ts"), kind === "react" ? `import { FreeMapExplorer } from "free-maps/react"; import { createMapLibreRenderer } from "free-maps/maplibre"; import type { FreeMapDataset } from "free-maps/core"; declare const data: FreeMapDataset; <FreeMapExplorer data={data} renderer={createMapLibreRenderer({ workerUrl: "/worker-v5.js", style: { version: 8, sources: {}, layers: [] } })} />;` : `import { parseFreeMapDataset } from "free-maps/core"; import { defineFreeMapElements } from "free-maps/element"; import type { PmtilesHandlerOptions } from "free-maps/cloudflare"; import "free-maps/themes/atlas.css"; defineFreeMapElements(); void parseFreeMapDataset; type Options = PmtilesHandlerOptions;`);
     execFileSync("npm", ["install", "--ignore-scripts"], { cwd: fixture, stdio: "ignore" });
     execFileSync("npx", ["tsc", "--noEmit"], { cwd: fixture, stdio: "inherit" });
     if (kind === "vanilla") {

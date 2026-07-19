@@ -1,7 +1,7 @@
 import type { FreeMapExplorerElement } from "../src/element";
 import { fetchDataset, options, register } from "./shared";
-import "../src/themes/heritage.css";
-import "../src/themes/heritage-dark.css";
+import "../src/themes/atlas.css";
+import "../src/themes/atlas-dark.css";
 
 register();
 for (const element of document.querySelectorAll<FreeMapExplorerElement>("free-map-explorer")) element.options = options;

@@ -35,7 +35,7 @@ import { createMapLibreRenderer } from "free-maps/maplibre";
 
 const renderer = createMapLibreRenderer({
   workerUrl: "/assets/maplibre-gl-csp-worker-v5.24.0.js",
-  styleUrl: "/map-assets/v0.3.0/heritage-light.json",
+  styleUrl: "/map-assets/v0.3.0/atlas-light.json",
   tileJsonUrl: "/tiles/melbourne.json",
   tileSession: {
     endpoint: "/api/tile-session",
@@ -62,10 +62,10 @@ Public methods are `activate()`, `reload()`, `select(id | null)`, `fitAll()`, an
 The element bundle contains structural CSS and accessible neutral fallback values. Apply a theme class before activation; runtime theme-object APIs and dynamic theme switching are intentionally outside the contract.
 
 ```ts
-import "free-maps/themes/heritage.css";
-// Or: import "free-maps/themes/heritage-dark.css";
+import "free-maps/themes/atlas.css";
+// Or: import "free-maps/themes/atlas-dark.css";
 
-explorer.classList.add("free-map-theme-heritage");
+explorer.classList.add("free-map-theme-atlas");
 ```
 
 Published tokens:

@@ -13,7 +13,7 @@
   src: url("/fonts/v0.3.0/ui/literata-latin-wght-normal.woff2") format("woff2-variations");
 }
 
-:where(.free-map-theme-heritage-dark) {
+:where(.free-map-theme-atlas-dark) {
   color-scheme: dark;
   --free-map-font-family: "Hanken Grotesk", Arial, system-ui, sans-serif;
   --free-map-heading-font-family: "Literata", Georgia, serif;

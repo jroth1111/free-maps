@@ -49,8 +49,8 @@
       "types": "./dist/cloudflare.d.ts",
       "import": "./dist/cloudflare.js"
     },
-    "./themes/heritage.css": "./dist/themes/heritage.css",
-    "./themes/heritage-dark.css": "./dist/themes/heritage-dark.css",
+    "./themes/atlas.css": "./dist/themes/atlas.css",
+    "./themes/atlas-dark.css": "./dist/themes/atlas-dark.css",
     "./package.json": "./package.json"
   },
   "peerDependencies": {
