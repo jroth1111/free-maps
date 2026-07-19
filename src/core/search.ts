@@ -38,6 +38,28 @@ const nullableDesc = (a: number | null | undefined, b: number | null | undefined
   return b! - a!;
 };
 
+export type IndexedPointSortCache = Map<FreeMapSort, { indexed: IndexedFreeMapPoint[]; rows: IndexedFreeMapPoint[] }>;
+const sortedIndexedPoints = (indexed: IndexedFreeMapPoint[], sort: FreeMapSort, cache?: IndexedPointSortCache): IndexedFreeMapPoint[] => {
+  const cached = cache?.get(sort);
+  if (cached?.indexed === indexed) return cached.rows;
+  const rows = [...indexed];
+  rows.sort((left, right) => {
+    const a = left.point;
+    const b = right.point;
+    let primary = 0;
+    if (sort === "name") primary = compareText(a.title, b.title);
+    else if (sort === "score") primary = nullableDesc(a.score, b.score);
+    else {
+      const aMissing = a.rank == null || !Number.isFinite(a.rank);
+      const bMissing = b.rank == null || !Number.isFinite(b.rank);
+      primary = aMissing !== bMissing ? (aMissing ? 1 : -1) : aMissing ? nullableDesc(a.score, b.score) : a.rank! - b.rank!;
+    }
+    return primary || compareText(a.title, b.title) || compareText(a.id, b.id);
+  });
+  cache?.set(sort, { indexed, rows });
+  return rows;
+};
+
 export function normalizeQuickFilters(filters: FreeMapQuickFilter[] = []): FreeMapQuickFilter[] {
   const seen = new Set<string>();
   return filters.filter((filter) => {
@@ -54,24 +76,21 @@ export function normalizeActiveFilters(active: readonly string[] = [], filters: 
   return filters.flatMap((filter) => declared.has(filter.id) && activeSet.has(filter.id) ? [filter.id] : []);
 }
 
-export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking", dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
+const filterSortedPoints = (sorted: IndexedFreeMapPoint[], categories: FreeMapCategory[], query: string, category: string, dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] => {
   const q = normalizeSearchText(query);
   const members = category === "all" ? null : resolveCategoryMembers(categories, category);
   const active = new Set(activeFilters);
   const predicates = quickFilters.filter((filter) => active.has(filter.id));
-  const rows = indexed.filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))) && (!dataset || predicates.every((filter) => filter.matches(point, dataset))));
-  rows.sort((left, right) => {
-    const a = left.point;
-    const b = right.point;
-    let primary = 0;
-    if (sort === "name") primary = compareText(a.title, b.title);
-    else if (sort === "score") primary = nullableDesc(a.score, b.score);
-    else {
-      const aMissing = a.rank == null || !Number.isFinite(a.rank);
-      const bMissing = b.rank == null || !Number.isFinite(b.rank);
-      primary = aMissing !== bMissing ? (aMissing ? 1 : -1) : aMissing ? nullableDesc(a.score, b.score) : a.rank! - b.rank!;
-    }
-    return primary || compareText(a.title, b.title) || compareText(a.id, b.id);
-  });
-  return rows.map(({ point }) => point);
+  return sorted
+    .filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))) && (!dataset || predicates.every((filter) => filter.matches(point, dataset))))
+    .map(({ point }) => point);
+};
+
+export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking", dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
+  return filterSortedPoints(sortedIndexedPoints(indexed, sort), categories, query, category, dataset, quickFilters, activeFilters);
+}
+
+/** Internal element fast path; the cache is owner-scoped so mutable caller arrays cannot leak stale order globally. */
+export function filterAndSortPointsMemoized(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query: string, category: string, sort: FreeMapSort, cache: IndexedPointSortCache, dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
+  return filterSortedPoints(sortedIndexedPoints(indexed, sort, cache), categories, query, category, dataset, quickFilters, activeFilters);
 }

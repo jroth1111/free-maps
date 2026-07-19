@@ -167,7 +167,7 @@ test("all static themes and forced-colors tokens remain available", async ({ pag
   const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
 });
 
-test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }) => {
+test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }, testInfo) => {
   await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
   const samples = await explorer.evaluate(async (element) => {
@@ -191,7 +191,9 @@ test("stress route keeps 5,000 points virtualized and updates within budget", as
     }
     return timings.sort((left, right) => left - right);
   });
-  expect(samples[Math.floor(samples.length * .95)]).toBeLessThan(200);
+  const p95 = samples[Math.floor(samples.length * .95)]!;
+  console.log(`${testInfo.project.name} 5,000-point UI-to-map p95: ${p95.toFixed(1)} ms`);
+  expect(p95).toBeLessThan(200);
   await expect(page.locator("#diagnostics")).toContainText("matches");
 });
 

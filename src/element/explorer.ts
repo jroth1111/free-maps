@@ -1,7 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { property, query as queryElement, state } from "lit/decorators.js";
 import {
-  filterAndSortPoints,
   indexPoints,
   normalizeActiveFilters,
   normalizeQuickFilters,
@@ -19,6 +18,7 @@ import {
   type MapRendererState,
   type MapViewportDetail,
 } from "../core";
+import { filterAndSortPointsMemoized, type IndexedPointSortCache } from "../core/search";
 import { FreeMapRuntimeController } from "./controller";
 import { structuralStyles } from "./styles";
 
@@ -36,6 +36,7 @@ export class FreeMapExplorerElement extends LitElement {
   private _data: FreeMapDataset | null = null;
   private indexed: IndexedFreeMapPoint[] = [];
   private indexedDataset: FreeMapDataset | null = null;
+  private sortedMemo: IndexedPointSortCache = new Map();
   private filteredMemo?: { dataset: FreeMapDataset; query: string; category: string; sort: FreeMapSort; indexed: IndexedFreeMapPoint[]; quickFilters: FreeMapQuickFilter[]; activeFilters: string[]; rows: FreeMapPoint[] };
   private renderableMemo?: { dataset: FreeMapDataset; rows: FreeMapPoint[]; selectedId: string | null; validPoint: NonNullable<FreeMapElementOptions["validPoint"]>; points: MapRendererState["points"] };
   private normalizedQuickMemo?: { source: FreeMapQuickFilter[] | undefined; filters: FreeMapQuickFilter[] };
@@ -114,7 +115,7 @@ export class FreeMapExplorerElement extends LitElement {
     const activeFilters = this.normalizedActiveFilters;
     const cached = this.filteredMemo;
     if (cached && cached.dataset === dataset && cached.indexed === this.indexed && cached.query === this.query && cached.category === this.category && cached.sort === this.sort && cached.quickFilters === quickFilters && cached.activeFilters.length === activeFilters.length && cached.activeFilters.every((id, index) => id === activeFilters[index])) return cached.rows;
-    const rows = filterAndSortPoints(this.indexed, dataset.categories, this.query, this.category, this.sort, dataset, quickFilters, activeFilters);
+    const rows = filterAndSortPointsMemoized(this.indexed, dataset.categories, this.query, this.category, this.sort, this.sortedMemo, dataset, quickFilters, activeFilters);
     this.filteredMemo = { dataset, indexed: this.indexed, query: this.query, category: this.category, sort: this.sort, quickFilters, activeFilters, rows };
     return rows;
   }
@@ -156,7 +157,7 @@ export class FreeMapExplorerElement extends LitElement {
     if (changed.has("src")) this.runtime.setSrc(this.src);
     if (changed.has("activation")) this.runtime.activationChanged();
     if (changed.has("options")) { this.normalizedQuickMemo = undefined; this.filteredMemo = undefined; if (!this.options.searchArea) this.searchAreaViewport = null; }
-    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); this.filteredMemo = undefined; this.renderableMemo = undefined; }
+    if (this.datasetValue !== this.indexedDataset) { this.indexedDataset = this.datasetValue; this.indexed = indexPoints(this.datasetValue?.points ?? []); this.sortedMemo.clear(); this.filteredMemo = undefined; this.renderableMemo = undefined; }
     if (changed.has("query") || changed.has("category") || changed.has("sort") || changed.has("activeFilters") || changed.has("options")) {
       const normalized = this.normalizedActiveFilters;
       if (changed.has("activeFilters") && (normalized.length !== this.activeFilters.length || normalized.some((id, index) => id !== this.activeFilters[index]))) this.activeFilters = normalized;

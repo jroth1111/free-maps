@@ -12,7 +12,7 @@ const state: MapRendererState = {
 };
 
 const context = {
-  arc: vi.fn(), beginPath: vi.fn(), clearRect: vi.fn(), fill: vi.fn(), fillRect: vi.fn(), fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), setTransform: vi.fn(), stroke: vi.fn(),
+  arc: vi.fn(), beginPath: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), fill: vi.fn(), fillRect: vi.fn(), fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), setTransform: vi.fn(), stroke: vi.fn(),
   fillStyle: "", strokeStyle: "", font: "", lineWidth: 0, textAlign: "start", textBaseline: "alphabetic",
 };
 
@@ -62,8 +62,13 @@ describe("vector canvas renderer", () => {
     expect(tiles.length).toBeGreaterThan(0);
     expect(tiles.every(({ url }) => !/%7B|%7D/.test(url))).toBe(true);
     expect(requests.filter(({ url }) => new URL(url).pathname.startsWith("/tiles/")).every(({ authorization }) => authorization === "Bearer scoped")).toBe(true);
+    const basemapPaints = context.fillRect.mock.calls.length;
+    await renderer.update({ ...state, points: state.points.slice(0, 1) });
+    expect(context.fillRect.mock.calls).toHaveLength(basemapPaints);
+    expect(context.drawImage).toHaveBeenCalled();
     const zoomButton = container.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')!;
     zoomButton.click(); expect(viewports.at(-1)?.cause).toBe("user");
+    expect(context.fillRect.mock.calls.length).toBeGreaterThan(basemapPaints);
     expect(requests.filter(({ url }) => new URL(url).pathname === "/tiles/map.json")).toHaveLength(1);
     renderer.resetView(); expect(viewports.at(-1)?.cause).toBe("programmatic");
     const count = viewports.length;

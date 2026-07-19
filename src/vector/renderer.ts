@@ -118,6 +118,9 @@ function replaceTileTemplate(template: string, z: number, x: number, y: number):
 export class VectorCanvasRenderer implements MapRenderer {
   private canvas?: HTMLCanvasElement;
   private context?: CanvasRenderingContext2D;
+  private basemapCanvas?: HTMLCanvasElement;
+  private basemapContext?: CanvasRenderingContext2D;
+  private basemapDirty = true;
   private state?: MapRendererState;
   private onSelect?: (id: string) => void;
   private center = { lng: 0, lat: 0 };
@@ -160,6 +163,8 @@ export class VectorCanvasRenderer implements MapRenderer {
     this.canvas = canvas;
     this.context = canvas.getContext("2d", { alpha: false }) ?? undefined;
     if (!this.context) throw new Error("Canvas 2D is unavailable");
+    this.basemapCanvas = document.createElement("canvas");
+    this.basemapContext = this.basemapCanvas.getContext("2d", { alpha: false }) ?? undefined;
     this.installChrome(container);
     this.installInteraction();
     this.resize = new ResizeObserver(() => { if (this.sizeCanvas()) { this.draw(); this.requestVisibleTiles(); } });
@@ -175,7 +180,7 @@ export class VectorCanvasRenderer implements MapRenderer {
   async update(state: MapRendererState): Promise<void> {
     this.state = state;
     const selected = state.points.find((point) => point.id === state.selectedId);
-    if (selected) { this.center = { lng: selected.lng, lat: selected.lat }; this.zoom = Math.max(this.zoom, 15); await this.loadVisibleTiles(); }
+    if (selected) { this.center = { lng: selected.lng, lat: selected.lat }; this.zoom = Math.max(this.zoom, 15); this.invalidateBasemap(); await this.loadVisibleTiles(); }
     this.draw();
   }
 
@@ -188,6 +193,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       const spanY = Math.abs(latToWorld(bounds[1], zoom) - latToWorld(bounds[3], zoom));
       if (spanX <= width - 112 && spanY <= height - 112) { this.zoom = zoom; break; }
     }
+    this.invalidateBasemap();
     this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
@@ -195,6 +201,7 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (!this.state) return;
     this.center = { ...this.state.dataset.center };
     this.zoom = this.state.dataset.defaultZoom;
+    this.invalidateBasemap();
     this.draw(); this.requestVisibleTiles(); this.emitViewport("programmatic");
   }
 
@@ -214,6 +221,9 @@ export class VectorCanvasRenderer implements MapRenderer {
     this.attribution?.remove();
     this.canvas = undefined;
     this.context = undefined;
+    this.basemapCanvas = undefined;
+    this.basemapContext = undefined;
+    this.basemapDirty = true;
   }
 
   private sizeCanvas(): boolean {
@@ -222,8 +232,14 @@ export class VectorCanvasRenderer implements MapRenderer {
     const width = Math.max(1, Math.round(this.canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(this.canvas.clientHeight * ratio));
     const changed = this.canvas.width !== width || this.canvas.height !== height;
-    if (changed) { this.canvas.width = width; this.canvas.height = height; }
+    if (changed) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+      if (this.basemapCanvas) { this.basemapCanvas.width = width; this.basemapCanvas.height = height; }
+      this.invalidateBasemap();
+    }
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.basemapContext?.setTransform(ratio, 0, 0, ratio, 0, 0);
     return changed;
   }
 
@@ -281,6 +297,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       if (!cancelled && moved) this.paintPan();
       else if (cancelled && moved) {
         this.center = { lng: worldToLng(drag.centerX, this.zoom), lat: worldToLat(drag.centerY, this.zoom) };
+        this.invalidateBasemap();
         this.draw();
       }
       this.suppressNextClick = !cancelled && moved;
@@ -313,13 +330,14 @@ export class VectorCanvasRenderer implements MapRenderer {
         const amount = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -80 : 80;
         const x = lngToWorld(this.center.lng, this.zoom) + (event.key === "ArrowLeft" || event.key === "ArrowRight" ? amount : 0);
         const y = latToWorld(this.center.lat, this.zoom) + (event.key === "ArrowUp" || event.key === "ArrowDown" ? amount : 0);
-        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.draw(); this.requestVisibleTiles(); this.emitViewport("user");
+        this.center = { lng: worldToLng(x, this.zoom), lat: worldToLat(y, this.zoom) }; this.invalidateBasemap(); this.draw(); this.requestVisibleTiles(); this.emitViewport("user");
       }
     });
   }
 
   private changeZoom(delta: number, cause: MapViewportCause): void {
     this.zoom = clamp(this.zoom + delta, this.options.minZoom ?? 3, this.options.maxZoom ?? 17);
+    this.invalidateBasemap();
     this.draw(); this.requestVisibleTiles(); this.emitViewport(cause);
   }
 
@@ -355,6 +373,7 @@ export class VectorCanvasRenderer implements MapRenderer {
       lng: worldToLng(this.dragging.centerX - (this.dragging.latestX - this.dragging.x), this.zoom),
       lat: worldToLat(this.dragging.centerY - (this.dragging.latestY - this.dragging.y), this.zoom),
     };
+    this.invalidateBasemap();
     this.draw();
   }
 
@@ -413,7 +432,23 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (revision !== this.tileRequestRevision || this.abort.signal.aborted) return;
     this.tiles = tiles;
     this.canvas.dataset.tileCount = String(tiles.length);
+    this.invalidateBasemap();
     this.draw();
+  }
+
+  private invalidateBasemap(): void { this.basemapDirty = true; }
+
+  private drawBasemap(width: number, height: number): boolean {
+    const canvas = this.basemapCanvas; const context = this.basemapContext;
+    if (!canvas || !context) return false;
+    if (this.basemapDirty) {
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = this.options.basemapStyle.background;
+      context.fillRect(0, 0, width, height);
+      for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
+      this.basemapDirty = false;
+    }
+    return true;
   }
 
   private draw(): void {
@@ -421,9 +456,13 @@ export class VectorCanvasRenderer implements MapRenderer {
     if (!canvas || !context || !state) return;
     const width = canvas.clientWidth; const height = canvas.clientHeight;
     const styles = getComputedStyle(canvas);
-    const background = this.options.basemapStyle.background;
-    context.clearRect(0, 0, width, height); context.fillStyle = background; context.fillRect(0, 0, width, height);
-    for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
+    context.clearRect(0, 0, width, height);
+    if (this.drawBasemap(width, height) && this.basemapCanvas) context.drawImage(this.basemapCanvas, 0, 0, width, height);
+    else {
+      context.fillStyle = this.options.basemapStyle.background;
+      context.fillRect(0, 0, width, height);
+      for (const layer of DRAW_LAYERS) for (const tile of this.tiles) for (const feature of tile.features) if (feature.layer === layer) this.drawFeature(context, tile, feature, width, height);
+    }
     this.drawPoints(context, state.points, state.selectedId, width, height, styles);
     context.fillStyle = cssToken(styles, "--free-map-text-muted", "#665f57");
     context.font = "10px system-ui"; context.textAlign = "right"; context.textBaseline = "bottom";
