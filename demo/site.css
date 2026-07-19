@@ -28,11 +28,11 @@ footer { border-top: 1px solid #d9d1c4; color: #665f57; font-size: .875rem; padd
 footer h2 { color: #22201e; font-family: Georgia, serif; font-size: 1.15rem; margin: 0 0 .75rem; }
 footer a { color: inherit; }
 nav a[aria-current="page"] { color: #8b2635; text-decoration: underline; text-underline-offset: .25em; }
-free-map-explorer, free-map-surface, #react-root { display: block; min-height: calc(clamp(18rem, 45svh, 26rem) + clamp(20rem, 60svh, 34rem) + 24.104rem); contain-intrinsic-size: 1152px; }
-free-map-explorer[compact], free-map-surface, .demo-grid #react-root { min-height: 24.125rem; contain-intrinsic-size: 386px; }
+free-map-explorer, free-map-surface, #react-root { display: block; height: calc(clamp(18rem, 45svh, 26rem) + clamp(20rem, 60svh, 34rem) + 24.104rem); overflow: auto; contain-intrinsic-size: 1152px; }
+free-map-explorer[compact], free-map-surface, .demo-grid #react-root { height: 24.125rem; contain-intrinsic-size: 386px; }
 .static-map-reserve { min-height: inherit; border: 1px solid #d9d1c4; background: linear-gradient(135deg, #f2eee6, #e9e6df); }
 footer ul { display: grid; gap: .4rem 2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding-left: 1.2rem; }
 footer p { color: #22201e; font-weight: 700; margin: 1rem 0 0; }
-@media (min-width: 760px) { free-map-explorer:not([compact]), #react-root { min-height: calc(clamp(36rem, 72svh, 49rem) + 3.139rem); contain-intrinsic-size: 626px; } }
+@media (min-width: 760px) { free-map-explorer:not([compact]), #react-root { height: calc(clamp(36rem, 72svh, 49rem) + 3.139rem); contain-intrinsic-size: 626px; } }
 @media (min-width: 900px) { .demo-grid:not(.embed-grid) { grid-template-columns: 1fr 1fr; } .state-grid { grid-template-columns: 1fr 1fr; } .state-grid article:last-child { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .site-header { align-items: start; flex-direction: column; gap: .6rem; } nav { max-width: 100%; width: 100%; } main { padding-top: 2rem; } footer ul { grid-template-columns: 1fr; } }
