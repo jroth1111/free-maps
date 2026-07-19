@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "free-maps",
   "main": "worker/index.ts",
-  "compatibility_date": "2026-07-18",
+  "compatibility_date": "2026-07-19",
   "workers_dev": true,
   "preview_urls": true,
   "routes": [
@@ -10,6 +10,7 @@
     { "pattern": "free-maps.forkandflag.com/*", "zone_name": "forkandflag.com" }
   ],
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "cache": { "enabled": true, "cross_version_cache": false },
   "assets": {
     "directory": "./demo-dist",
     "binding": "ASSETS",
@@ -18,9 +19,12 @@
   },
   "r2_buckets": [{ "binding": "BASEMAP", "bucket_name": "free-maps-basemap" }],
   "vars": {
-    "APP_VERSION": "0.2.0",
+    "APP_VERSION": "0.3.0",
     "BASEMAP_VERSION": "20260717",
     "BASEMAP_KEY": "basemaps/greater-melbourne-20260717.pmtiles",
+    "TILE_CACHE_NAMESPACE": "free-maps",
+    "TILE_CACHE_VERSION": "v0.3.0",
+    "TILE_ENCODING_REVISION": "mvt-gzip-v1",
     "PRODUCTION_ORIGIN": "https://free-maps.forkandflag.com"
   },
   "observability": { "enabled": true }

@@ -7,7 +7,8 @@ const base64url = (bytes: Uint8Array) => {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 };
 const decode = (value: string) => {
-  const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/"));
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 };
 const keyFor = (secret: string) => crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
@@ -33,5 +34,5 @@ export async function verifyTileSession(secret: string, token: string, origin: s
 export function bearerToken(request: Request): string | null {
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) return authorization.slice(7);
-  return new URL(request.url).searchParams.get("token");
+  return null;
 }

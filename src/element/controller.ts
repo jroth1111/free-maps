@@ -1,5 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { calculateBounds, parseFreeMapDataset, type FreeMapActivation, type FreeMapDataset, type FreeMapErrorDetail, type MapRenderer, type MapRendererFactory, type MapRendererState } from "../core";
+import { mapMountScheduler } from "./scheduler";
 
 type RuntimeHost = ReactiveControllerHost & HTMLElement & {
   activation: FreeMapActivation;
@@ -24,6 +25,12 @@ const stablePaint = (): Promise<void> => new Promise((resolve) => {
   }));
 });
 
+const yieldMainThread = (): Promise<void> => {
+  const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (scheduler?.yield) return scheduler.yield();
+  return new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 export class FreeMapRuntimeController implements ReactiveController {
   data: FreeMapDataset | null = null;
   sourceData: FreeMapDataset | null = null;
@@ -36,6 +43,9 @@ export class FreeMapRuntimeController implements ReactiveController {
   private observer?: IntersectionObserver;
   private rendererInstance?: MapRenderer;
   private mountPromise?: Promise<void>;
+  private updatePromise?: Promise<void>;
+  private pendingState?: MapRendererState;
+  private mountAbort = new AbortController();
   private revision = 0;
   private connected = false;
   private stable = stablePaint();
@@ -44,6 +54,7 @@ export class FreeMapRuntimeController implements ReactiveController {
 
   hostConnected(): void {
     this.connected = true;
+    if (this.mountAbort.signal.aborted) this.mountAbort = new AbortController();
     void this.prepareActivation();
     if (this.data) this.accept(this.data);
     else if (this.src) void this.reload();
@@ -51,6 +62,7 @@ export class FreeMapRuntimeController implements ReactiveController {
 
   hostDisconnected(): void {
     this.connected = false;
+    this.mountAbort.abort();
     this.abort?.abort();
     this.observer?.disconnect();
     this.disposeRenderer();
@@ -132,20 +144,48 @@ export class FreeMapRuntimeController implements ReactiveController {
     if (!state || !container || !this.active) return;
     const factory = this.host.renderer ?? registeredRenderer;
     if (!factory) { this.report("renderer-configuration", new Error("No renderer configured. Pass renderer or register a default with defineFreeMapElements({ renderer })."), false); return; }
+    this.pendingState = state;
     if (!this.mountPromise) {
-      this.mountPromise = (async () => {
+      if (this.mountAbort.signal.aborted) this.mountAbort = new AbortController();
+      const signal = this.mountAbort.signal;
+      this.mountPromise = mapMountScheduler.schedule(async () => {
+        if (signal.aborted || !this.connected) throw new DOMException("Map initialization cancelled", "AbortError");
         try { this.rendererInstance = await factory(); }
-        catch (cause) { this.report("renderer-loading", cause, true); throw cause; }
+        catch (cause) { if (!signal.aborted) this.report("renderer-loading", cause, true); throw cause; }
+        // A dynamic renderer factory may evaluate a substantial graphics
+        // module. Yield before mount so module evaluation and renderer setup
+        // cannot combine into one long main-thread task. The scheduler slot is
+        // still held until first paint because this yield is inside the task.
+        await yieldMainThread();
+        if (signal.aborted || !this.connected) { this.rendererInstance.destroy(); throw new DOMException("Map initialization cancelled", "AbortError"); }
         try {
           await this.rendererInstance.mount(container, state, (id) => this.host.runtimeSelect(id));
+          if (signal.aborted || !this.connected) { this.rendererInstance.destroy(); throw new DOMException("Map initialization cancelled", "AbortError"); }
           this.host.dispatchEvent(new CustomEvent("free-map-ready", { bubbles: true, composed: true, detail: { datasetId: state.dataset.id, pointCount: state.dataset.points.length, mappedCount: state.points.length } }));
-        } catch (cause) { this.report("renderer-runtime", cause, true); throw cause; }
-      })();
-      try { await this.mountPromise; } catch { this.disposeRenderer(); }
+        } catch (cause) { if (!signal.aborted && this.connected) this.report("renderer-runtime", cause, true); throw cause; }
+      }, signal);
+      try {
+        await this.mountPromise;
+        const latest = this.pendingState;
+        this.pendingState = undefined;
+        if (latest && latest !== state) await this.rendererInstance?.update(latest);
+      } catch { this.disposeRenderer(); }
       return;
     }
-    try { await this.mountPromise; await this.rendererInstance?.update(state); }
-    catch (cause) { this.report("renderer-runtime", cause, true); this.disposeRenderer(); }
+    if (!this.updatePromise) {
+      this.updatePromise = Promise.resolve().then(async () => {
+        try {
+          await this.mountPromise;
+          const latest = this.pendingState;
+          this.pendingState = undefined;
+          if (latest && this.connected) await this.rendererInstance?.update(latest);
+        } catch (cause) {
+          if (!this.mountAbort.signal.aborted && this.connected) this.report("renderer-runtime", cause, true);
+          this.disposeRenderer();
+        }
+      }).finally(() => { this.updatePromise = undefined; if (this.pendingState && this.connected) void this.syncRenderer(); });
+    }
+    await this.updatePromise;
   }
 
   fitAll(): void { const bounds = calculateBounds(this.host.runtimeState()?.points ?? []); if (bounds) this.rendererInstance?.fitBounds(bounds); }
@@ -188,5 +228,7 @@ export class FreeMapRuntimeController implements ReactiveController {
     this.rendererInstance?.destroy();
     this.rendererInstance = undefined;
     this.mountPromise = undefined;
+    this.updatePromise = undefined;
+    this.pendingState = undefined;
   }
 }

@@ -1,0 +1,55 @@
+{
+  "generatedBy": "scripts/generate-map-assets.mjs",
+  "release": "v0.3.0",
+  "labelFace": "Noto Sans Regular",
+  "omittedPatterns": [
+    "pois",
+    "transit",
+    "airport",
+    "shield"
+  ],
+  "omittedMelbourneLayers": [
+    "landuse_aerodrome",
+    "roads_runway",
+    "roads_taxiway",
+    "landuse_runway"
+  ],
+  "regressionChecks": [
+    {
+      "zoom": 5,
+      "required": [
+        "background",
+        "earth",
+        "water",
+        "places_locality"
+      ]
+    },
+    {
+      "zoom": 10,
+      "required": [
+        "background",
+        "water",
+        "roads_major",
+        "places_locality"
+      ]
+    },
+    {
+      "zoom": 14,
+      "required": [
+        "water",
+        "buildings",
+        "roads_minor",
+        "roads_labels_major"
+      ]
+    },
+    {
+      "zoom": 18,
+      "required": [
+        "buildings",
+        "roads_minor_service",
+        "address_label",
+        "roads_oneway"
+      ]
+    }
+  ]
+}
