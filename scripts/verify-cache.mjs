@@ -42,9 +42,10 @@ if (strict) expect(assetWarm.status === 304 || ["HIT", "REVALIDATED"].includes(a
 const datasetCold = await capture("datasetCold", "/api/v1/demo-dataset?size=250");
 const datasetWarm = await capture("datasetWarm", "/api/v1/demo-dataset?size=250");
 expect(datasetCold.headers.get("cache-control")?.includes("max-age=300"), "Dataset browser TTL must be five minutes");
+expect(datasetCold.headers.get("cloudflare-cdn-cache-control") === "no-store", "Dataset must bypass the outer zone CDN");
 expect(datasetCold.headers.get("etag")?.includes(`demo-${packageVersion}-250`), `Dataset cache must contain the deployed ${packageVersion} response`);
 if (strict) {
-  expect(datasetWarm.headers.get("cf-cache-status") === "HIT", "Warm dataset must be served by Workers Cache");
+  expect(datasetWarm.headers.get("cf-cache-status") !== "HIT", "Dataset must not be served by the outer zone CDN");
   expect(Boolean(datasetCold.headers.get("x-free-maps-invocation")), "Cold dataset response must expose a non-secret invocation id");
   expect(datasetCold.headers.get("x-free-maps-invocation") === datasetWarm.headers.get("x-free-maps-invocation"), "Warm dataset must preserve the cached invocation id and bypass Worker execution");
 }

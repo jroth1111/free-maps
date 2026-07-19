@@ -63,7 +63,10 @@ const datasetResponse = (request: Request, env: Env): Response => {
   const cacheHeaders = {
     ETag: etag,
     "Cache-Control": "public, max-age=300",
-    "Cloudflare-CDN-Cache-Control": "public, max-age=3600, stale-while-revalidate=1800",
+    // The named Dataset entrypoint owns the version-aware edge cache. Keep
+    // the outer zone CDN from serving another Worker version before version
+    // overrides, rollbacks, or gradual deployments can reach the isolate.
+    "Cloudflare-CDN-Cache-Control": "no-store",
     "Cache-Tag": `free-maps-dataset,free-maps-dataset-${env.APP_VERSION}`,
     "Access-Control-Allow-Origin": "*",
     "X-Free-Maps-Invocation": crypto.randomUUID(),
