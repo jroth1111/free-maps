@@ -59,6 +59,17 @@ const yieldMainThread = (): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+const transientStatus = (status: number) => status === 429 || status >= 500;
+async function fetchWithRetry(input: string, init: RequestInit): Promise<Response> {
+  let response = await fetch(input, init);
+  if (!transientStatus(response.status) || init.signal?.aborted) return response;
+  await response.body?.cancel();
+  await yieldMainThread();
+  if (init.signal?.aborted) throw new DOMException("Map activation was cancelled", "AbortError");
+  response = await fetch(input, init);
+  return response;
+}
+
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value));
 const lngToWorld = (lng: number, zoom: number) => ((lng + 180) / 360) * TILE_SIZE * 2 ** zoom;
 const latToWorld = (lat: number, zoom: number) => {
@@ -346,7 +357,7 @@ export class VectorCanvasRenderer implements MapRenderer {
     const tileJsonUrl = new URL(this.options.tileJsonUrl, location.href).href;
     if (!this.tileJsonPromise) {
       const tileJsonHeaders = prefix && token ? scopedRequestHeaders(tileJsonUrl, prefix, token, tileHeaders) : undefined;
-      this.tileJsonPromise = fetch(tileJsonUrl, { headers: tileJsonHeaders, signal: this.abort.signal }).then(async (response) => {
+      this.tileJsonPromise = fetchWithRetry(tileJsonUrl, { headers: tileJsonHeaders, signal: this.abort.signal }).then(async (response) => {
         if (!response.ok) throw new Error(`TileJSON request failed with ${response.status}`);
         return { value: await response.json() as TileJson, responseUrl: response.url || tileJsonUrl };
       }).catch((cause) => { this.tileJsonPromise = undefined; throw cause; });
@@ -361,18 +372,23 @@ export class VectorCanvasRenderer implements MapRenderer {
     const minY = clamp(Math.floor((centerY - height / (2 * scale)) / TILE_SIZE), 0, worldTileLimit);
     const maxY = clamp(Math.floor((centerY + height / (2 * scale)) / TILE_SIZE), 0, worldTileLimit);
     const template = new URL(tileJson.tiles[0]!, responseUrl).href.replaceAll("%7B", "{").replaceAll("%7D", "}");
-    const jobs: Array<Promise<{ buffer?: ArrayBuffer; x: number; y: number; z: number }>> = [];
+    const jobs: Array<Promise<{ buffer?: ArrayBuffer; failed?: Error; x: number; y: number; z: number }>> = [];
     for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
       const normalizedX = ((x % 2 ** tileZoom) + 2 ** tileZoom) % 2 ** tileZoom;
       const url = replaceTileTemplate(template, tileZoom, normalizedX, y);
       const headers = prefix && token ? scopedRequestHeaders(url, prefix, token, tileHeaders) : undefined;
-      jobs.push(fetch(url, { headers, signal: this.abort.signal }).then(async (response) => {
+      jobs.push(fetchWithRetry(url, { headers, signal: this.abort.signal }).then(async (response) => {
         if (response.status === 204) return { x, y, z: tileZoom };
         if (!response.ok) throw new Error(`Vector tile request failed with ${response.status}`);
         return { buffer: await response.arrayBuffer(), x, y, z: tileZoom };
+      }).catch((cause) => {
+        if (this.abort.signal.aborted) throw cause;
+        return { failed: cause instanceof Error ? cause : new Error(String(cause)), x, y, z: tileZoom };
       }));
     }
     const responses = await Promise.all(jobs);
+    const failures = responses.filter((response) => response.failed);
+    if (failures.length === responses.length) throw failures[0]!.failed;
     const tiles: DrawTile[] = [];
     // Cached responses can all resolve in one turn. Decode sequentially so
     // their bounded batches cannot accumulate into a single long task.

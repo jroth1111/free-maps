@@ -41,12 +41,14 @@ describe("vector canvas renderer", () => {
 
   it("paints numeric vector-tile URLs with scoped credentials and disposes cleanly", async () => {
     const requests: Array<{ url: string; authorization: string | null }> = [];
+    let transientTileFailure = true;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), location.href);
       const headers = new Headers(init?.headers);
       requests.push({ url: url.href, authorization: headers.get("authorization") });
       if (url.pathname === "/api/tile-session") return new Response(JSON.stringify({ token: "scoped", expiresAt: Date.now() + 300_000 }));
       if (url.pathname === "/tiles/map.json") return new Response(JSON.stringify({ tiles: ["/tiles/data/{z}/{x}/{y}.mvt"], minzoom: 0, maxzoom: 15 }));
+      if (transientTileFailure) { transientTileFailure = false; return new Response("temporary", { status: 502 }); }
       return new Response(new Uint8Array(), { status: 200, headers: { "content-type": "application/vnd.mapbox-vector-tile" } });
     }));
     const renderer = new VectorCanvasRenderer({ tileJsonUrl: "/tiles/map.json", basemapStyle: neutralLightBasemap, tileSession: { endpoint: "/api/tile-session", protectedUrlPrefix: "/tiles/" }, tileHeaders: { "x-client": "test" } });
