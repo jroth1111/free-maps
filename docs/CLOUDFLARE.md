@@ -15,7 +15,7 @@ The archive is versioned and immutable. Never overwrite, delete, or cache the co
 
 ## v0.3 cache and authentication model
 
-Wrangler enables Workers Cache with `cross_version_cache: false`. Deterministic demo datasets use a five-minute browser TTL and one-hour edge TTL with stale-while-revalidate. Health, tile sessions, errors, authenticated requests, and unsupported methods are `no-store`. HTML requires browser revalidation but has a short edge TTL. Only release-versioned or hashed assets receive one-year immutable caching.
+Wrangler enables Workers Cache with `cross_version_cache: false`. The uncached default entrypoint is a gateway: it validates the dataset method and size before forwarding only valid public reads to the cache-enabled `Dataset` entrypoint. This keeps health, tile sessions, errors, authenticated tile requests, and unsupported methods out of the Workers Cache lookup path entirely. Deterministic demo datasets use a five-minute browser TTL and one-hour edge TTL with stale-while-revalidate. HTML requires browser revalidation but has a short edge TTL. Only release-versioned or hashed assets receive one-year immutable caching.
 
 Authenticated TileJSON and MVT responses continue to use `caches.default`, which is PoP-local and does not provide tiered caching or Cache API stale-while-revalidate. Authentication runs before cache lookup. Internal responses contain no token or caller Origin; client copies add CORS and private browser caching after retrieval. Cache keys include cache namespace/version, basemap version, archive key, encoding revision, and coordinates. Versioned missing tiles use a bounded 204 entry. Errors and 206 responses are never stored.
 
