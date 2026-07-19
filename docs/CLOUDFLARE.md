@@ -49,3 +49,9 @@ npx wrangler rollback 801313c6-fd57-4da3-b829-0ecc2b668011
 ```
 
 Also restore the response-header transform and Web Analytics hostname settings recorded above if the v0.3 zone changes must be reverted. Rollback never mutates the retained PMTiles archive.
+
+## Current release-candidate disposition
+
+The v0.3 candidate failed the authoritative Ubuntu Lighthouse Performance gate and was rolled back. Production currently runs only Worker version `801313c6-fd57-4da3-b829-0ecc2b668011` at 100% in deployment `813b919e-5eab-4c8d-ac50-ae75bb2338cb`.
+
+The hostname-scoped zone changes remain safe for v0.2: Configuration Rule `82f589559e194772b15ce7fa0f61fdda` disables RUM only on `free-maps.forkandflag.com`, Response Header Transform Rule `3fb084cc912a4a30951a0ec71047ec39` excludes that hostname, there are no Cache Rules or Cache Response Rules, and Worker Observability remains enabled. See `RELEASE_NOTES_v0.3.0.md` for the retained acceptance evidence and release blocker.

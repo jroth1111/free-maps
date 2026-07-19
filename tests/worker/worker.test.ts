@@ -1,7 +1,7 @@
 import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker, { type Env } from "../../worker";
-import { buildPmtilesCacheKey, clearPmtilesMissesForTests, handlePmtilesRequest, issueTileSession, verifyTileSession, type PmtilesCachePolicy, type R2BucketLike } from "../../src/cloudflare";
+import { buildPmtilesCacheKey, clearPmtilesMissesForTests, handlePmtilesRequest, isCacheablePmtilesStatus, issueTileSession, verifyTileSession, type PmtilesCachePolicy, type R2BucketLike } from "../../src/cloudflare";
 
 const fixture = Uint8Array.from(atob("UE1UaWxlcwN/AAAAAAAAABkAAAAAAAAAmAAAAAAAAAD3AAAAAAAAAAAAAAAAAAAAAAAAAAAAAACPAQAAAAAAAEUAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAAICAQAAAAAAAAAAAAB/lpgAgJaYAAAAAAAAAAAAAB+LCAAAAAAAAhNjZGB0ZQQATD+JAAUAAAAfiwgAAAAAAAITfU/LboMwELznK6w9AyWReum1P9B7hZBjFmQJe5G9RCHI/x7bSRv6UI4zOzuPdQdWGoQ3AYye216feXbY7qvJsB7RQ7GDDr1yemJN9rnwhM7fRYeEeZmyNcXDKJdEDWjRSSaXnfQ0oZKWUJwO1WtV/1C0lCN9UlYvG215GURJ4v8eoix7cgpvfVTyidGxWLT5FKsA3f0d8b1B/B6bKKPthchEWCckzxvUaxy75L0GEURTQDZiyZmDHP1Os+UI9wU8qtxvT7qAevwNSAbZLUn+QeMyxHYFSGanjzPjV0K94XJKE5oQrptsCtvlAQAAH4sIAAAAAAACE5PSr2DiEi1JLS6JT8usKCktSo03LMgtycxJLdZoUBASlGBW4uWcpvBCXopBQpSBQZwfAJf6ay0xAAAA"), (char) => char.charCodeAt(0));
 const origin = "http://localhost:4173";
@@ -55,13 +55,16 @@ describe("Worker endpoints", () => {
     await env.BASEMAP.put("basemaps/greater-melbourne-20260717.pmtiles", fixture);
     const context = createExecutionContext();
     const health = await worker.fetch(request("/api/health"), env as unknown as Env, context);
-    expect(health.status).toBe(200); expect(await health.json()).toMatchObject({ ok: true, version: "0.3.0-test", basemapVersion: "20260717" });
+    expect(health.status).toBe(200); expect(health.headers.get("cache-control")).toBe("no-store"); expect(await health.json()).toMatchObject({ ok: true, version: "0.3.0-test", basemapVersion: "20260717" });
     const first = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, context);
     expect(first.status).toBe(200); expect((await first.json() as { points: unknown[] }).points).toHaveLength(250);
     const cached = await worker.fetch(request("/api/v1/demo-dataset?size=250", { headers: { "if-none-match": first.headers.get("etag")! } }), env as unknown as Env, context);
     expect(cached.status).toBe(304);
     expect((await worker.fetch(request("/api/v1/demo-dataset?size=7"), env as unknown as Env, context)).status).toBe(400);
-    expect((await worker.fetch(request("/api/health", { method: "POST" }), env as unknown as Env, context)).status).toBe(405);
+    const wrongMethod = await worker.fetch(request("/api/health", { method: "POST" }), env as unknown as Env, context);
+    expect(wrongMethod.status).toBe(405); expect(wrongMethod.headers.get("cache-control")).toBe("no-store");
+    const missingApi = await worker.fetch(request("/api/not-found"), env as unknown as Env, context);
+    expect(missingApi.status).toBe(404); expect(missingApi.headers.get("cache-control")).toBe("no-store");
   });
 
   it("enforces origin-bound tokens and serves TileJSON and a vector tile", async () => {
@@ -70,6 +73,7 @@ describe("Worker endpoints", () => {
     const denied = await worker.fetch(new Request("http://localhost/api/tile-session", { method: "POST" }), env as unknown as Env, context);
     expect(denied.status).toBe(403);
     const sessionResponse = await worker.fetch(request("/api/tile-session", { method: "POST" }), env as unknown as Env, context);
+    expect(sessionResponse.headers.get("cache-control")).toBe("no-store");
     const { token } = await sessionResponse.json() as { token: string };
     const headers = { authorization: `Bearer ${token}` };
     const tileJson = await worker.fetch(request("/tiles/melbourne.json", { headers }), env as unknown as Env, context);
@@ -159,6 +163,14 @@ describe("Worker endpoints", () => {
     expect(key.url).toContain("worker-test/v3/20260717/basemaps%2Farchive.pmtiles/gzip-v3/12/3210/2048.mvt");
     expect(key.url).not.toContain("token");
     expect(key.url).not.toContain("Bearer");
+  });
+
+  it("never treats partial or error responses as cacheable PMTiles entries", () => {
+    expect(isCacheablePmtilesStatus(200)).toBe(true);
+    expect(isCacheablePmtilesStatus(204)).toBe(true);
+    expect(isCacheablePmtilesStatus(206)).toBe(false);
+    expect(isCacheablePmtilesStatus(400)).toBe(false);
+    expect(isCacheablePmtilesStatus(500)).toBe(false);
   });
 
   it("authenticates before consulting a warm shared tile cache", async () => {

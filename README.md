@@ -1,6 +1,6 @@
 # Free Maps
 
-Free Maps is an ESM-only, renderer-neutral map explorer for modern browsers. It provides a schema-v1 dataset, structural UI, opt-in themes, explicit MapLibre resources, scoped tile authorization, and configurable Cloudflare cache policy. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
+Free Maps is an ESM-only, renderer-neutral map explorer for modern browsers. It provides a schema-v1 dataset, structural UI, opt-in themes, a lightweight vector-canvas renderer, an optional MapLibre adapter, scoped tile authorization, and configurable Cloudflare cache policy. The hosted demo uses deterministic fictional Melbourne data; it contains no Fork & Flag venue records or private data.
 
 Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 
@@ -9,9 +9,9 @@ Demo: [free-maps.forkandflag.com](https://free-maps.forkandflag.com)
 - Map data: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
 - Basemap schema/style/assets: [Protomaps](https://protomaps.com)
 - Tile archive: [PMTiles](https://docs.protomaps.com/pmtiles/) containing vector MVT tiles
-- Browser renderer: [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)
+- Browser renderer: lightweight Free Maps vector canvas; optional [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) adapter
 - Hosting: [Cloudflare Worker](https://developers.cloudflare.com/workers/) + R2 range reads
-- Demo markers: synthetic GeoJSON data clustered by MapLibre
+- Demo markers: synthetic GeoJSON data clustered by the vector renderer
 
 No Google Maps or Cloudflare Web Analytics requests are part of the demo runtime.
 
@@ -23,9 +23,28 @@ Registry publication remains deferred. Install the v0.3.0 release tarball:
 npm install ./free-maps-0.3.0.tgz
 ```
 
-Install `maplibre-gl` only when using the `free-maps/maplibre` adapter. React and MapLibre are optional peers; `core`, `cloudflare`, and `element` do not import either one.
+Install `maplibre-gl` only when using the `free-maps/maplibre` adapter. React and MapLibre are optional peers; `core`, `cloudflare`, `element`, and `vector` do not import either one.
 
-## Custom elements and explicit renderer resources
+## Lightweight vector renderer
+
+The hosted demo uses the first-party canvas renderer. It fetches the same scoped, authenticated TileJSON and MVT endpoints, incrementally decodes a bounded set of visible vector layers, paints real OpenStreetMap/Protomaps content, and provides pan, zoom, clustering, selection, attribution, cancellation, and responsive redraw without a WebGL startup task.
+
+```ts
+import { defineFreeMapElements } from "free-maps/element";
+import { createVectorCanvasRenderer } from "free-maps/vector";
+
+defineFreeMapElements({
+  renderer: createVectorCanvasRenderer({
+    tileJsonUrl: "/tiles/melbourne.json",
+    tileSession: {
+      endpoint: "/api/tile-session",
+      protectedUrlPrefix: "/tiles/",
+    },
+  }),
+});
+```
+
+## MapLibre and explicit renderer resources
 
 Nothing registers custom elements, loads MapLibre, selects a basemap, or chooses a theme as an import side effect.
 
@@ -35,7 +54,7 @@ import { createMapLibreRenderer } from "free-maps/maplibre";
 
 const renderer = createMapLibreRenderer({
   workerUrl: "/assets/maplibre-gl-csp-worker-v5.24.0.js",
-  styleUrl: "/map-assets/v0.3.0/heritage-light.json",
+  styleUrl: "/map-assets/v0.3.0/atlas-light.json",
   tileJsonUrl: "/tiles/melbourne.json",
   tileSession: {
     endpoint: "/api/tile-session",
@@ -62,10 +81,10 @@ Public methods are `activate()`, `reload()`, `select(id | null)`, `fitAll()`, an
 The element bundle contains structural CSS and accessible neutral fallback values. Apply a theme class before activation; runtime theme-object APIs and dynamic theme switching are intentionally outside the contract.
 
 ```ts
-import "free-maps/themes/heritage.css";
-// Or: import "free-maps/themes/heritage-dark.css";
+import "free-maps/themes/atlas.css";
+// Or: import "free-maps/themes/atlas-dark.css";
 
-explorer.classList.add("free-map-theme-heritage");
+explorer.classList.add("free-map-theme-atlas");
 ```
 
 Published tokens:
@@ -79,6 +98,8 @@ Published tokens:
 - Shape and elevation: `--free-map-radius-small`, `--free-map-radius`, `--free-map-shadow-control`
 
 Virtual-row heights and layout-critical dimensions are private. Stable styling hooks are `::part(controls)`, `::part(results)`, `::part(result-row)`, `::part(map)`, `::part(status)`, and `::part(errors)`. Additional parts may exist but are not part of this stability promise.
+
+When a page contains multiple explorers, give each host a distinct `aria-label`; the element prefixes its map and results landmark names with that label.
 
 Map marker and MapLibre control colors are resolved from these tokens once at renderer mount. Select the theme and set overrides before activation.
 
@@ -130,7 +151,21 @@ An injected `cache` is optional. Internal keys include namespace, cache version,
 
 The static MPA routes are `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, and `/stress/`. The explorer preserves `q`, `category`, `sort`, and `point`; unknown routes use a real `404.html`. React loads only on `/react/`.
 
-MapLibre is not requested before stable paint and activation eligibility. Compatible maps share style and expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
+The demo does not request MapLibre. It loads the vector renderer only after stable paint and activation eligibility. Compatible maps share expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
+
+### Current Lighthouse results
+
+The most recent pinned Ubuntu acceptance matrix (2026-07-19) uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **98 to 100**, the lowest individual run is **96**, and **all 30** route/profile/cache rows meet the ≥98 median floor. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in every row**.
+
+| Route | Cold Performance medians | Warm Performance medians |
+| --- | --- | --- |
+| `/` | 98–100 | 99–100 |
+| `/embed/` | 98–100 | 98–100 |
+| `/states/` | 98–100 | 99–100 |
+| `/vanilla/` | 98–100 | 99–100 |
+| `/react/` | 98–100 | 99–100 |
+
+Mobile and iPad medians are **100 on every route in both cache modes**. Cold desktop medians are 98; warm desktop medians are 98–99. The remaining desktop variance comes from Lighthouse's simulated paint model despite observed paint near 90 ms and 0–9 ms blocking time on the affected cold runs. Production remains on v0.2.0 until the reviewed candidate is promoted. See [the full candidate evidence](docs/RELEASE_NOTES_v0.3.0.md).
 
 See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/UI_VERIFICATION.md](docs/UI_VERIFICATION.md).
 
@@ -143,4 +178,4 @@ npm run test:e2e
 CACHE_BASE_URL=http://127.0.0.1:4173 npm run cache:verify
 ```
 
-The release matrix uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34 on serial `ubuntu-24.04`: three cold and three primed warm runs for five routes across three profiles, producing 90 JSON and 90 HTML reports.
+The release matrix uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34 on serial `ubuntu-24.04`: three cold and three primed warm runs for five routes across three profiles, producing 90 JSON and 90 HTML reports when the canary clears the early hard gate.

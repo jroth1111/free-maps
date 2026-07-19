@@ -77,6 +77,9 @@ export function buildPmtilesCacheKey(options: Pick<PmtilesHandlerOptions, "archi
 
 const cacheControl = (seconds: number) => `public, max-age=${seconds}`;
 
+/** Only complete TileJSON/tile responses and bounded negative results are cacheable. */
+export const isCacheablePmtilesStatus = (status: number): boolean => status === 200 || status === 204;
+
 const responseForClient = (stored: Response, request: Request, origin: string, browserTtl: number, diagnostic: "hit" | "miss" | "coalesced") => {
   const headers = new Headers(stored.headers);
   headers.set("Cache-Control", `private, max-age=${browserTtl}`);
@@ -153,7 +156,7 @@ export async function handlePmtilesRequest(options: PmtilesHandlerOptions): Prom
   if (!pending) {
     pending = (async () => {
       const response = await createStoredResponse(options, parsed);
-      if (response.status === 200 || response.status === 204) {
+      if (isCacheablePmtilesStatus(response.status)) {
         const write = cache.put(key, response.clone()).catch(() => undefined);
         options.context.waitUntil(write);
         await write;

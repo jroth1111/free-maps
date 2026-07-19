@@ -33,8 +33,8 @@ const htmlWarm = await capture("htmlWarm", "/");
 expect(htmlCold.status === 200 && htmlWarm.status === 200, "HTML must be available before and after warming");
 expect(htmlWarm.headers.get("cache-control")?.includes("max-age=0"), "HTML must require browser revalidation");
 
-const assetCold = await capture("assetCold", "/map-assets/v0.3.0/heritage-light.json");
-const assetWarm = await capture("assetWarm", "/map-assets/v0.3.0/heritage-light.json", { headers: assetCold.headers.get("etag") ? { "if-none-match": assetCold.headers.get("etag") } : {} });
+const assetCold = await capture("assetCold", "/map-assets/v0.3.0/atlas-light.json");
+const assetWarm = await capture("assetWarm", "/map-assets/v0.3.0/atlas-light.json", { headers: assetCold.headers.get("etag") ? { "if-none-match": assetCold.headers.get("etag") } : {} });
 expect(assetCold.headers.get("cache-control")?.includes("immutable"), "Versioned style must be immutable");
 expect(assetWarm.status === 200 || assetWarm.status === 304, "Warm immutable asset must return 200 or 304");
 if (strict) expect(assetWarm.status === 304 || ["HIT", "REVALIDATED"].includes(assetWarm.headers.get("cf-cache-status") ?? ""), "Warm immutable asset must be a Cloudflare hit or 304");

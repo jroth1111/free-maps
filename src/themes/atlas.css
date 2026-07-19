@@ -29,7 +29,7 @@
   line-gap-override: 0%;
 }
 
-:where(.free-map-theme-heritage) {
+:where(.free-map-theme-atlas) {
   --free-map-font-family: "Hanken Grotesk", "Hanken Grotesk Fallback", system-ui, sans-serif;
   --free-map-heading-font-family: "Literata", "Literata Fallback", Georgia, serif;
   --free-map-surface-canvas: #f8f5ef;

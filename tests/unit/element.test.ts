@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { defineFreeMapElements, type FreeMapExplorerElement } from "../../src/element";
 import type { FreeMapDataset, MapRenderer, MapRendererState } from "../../src/core";
-import { dataset } from "./core.test";
+import { dataset } from "./fixtures";
 import { SerialMountScheduler } from "../../src/element/scheduler";
 
 class FakeRenderer implements MapRenderer {
@@ -66,6 +66,18 @@ describe("element lifecycle", () => {
     const many = { ...dataset, id: "many", points: Array.from({ length: 5000 }, (_, index) => ({ ...dataset.points[0]!, id: `p-${index}`, title: `Place ${index}` })) };
     const element = elementWith(new FakeRenderer()); element.data = many; document.body.append(element); await settle(element);
     expect(element.shadowRoot?.querySelectorAll(".row").length).toBeLessThan(60);
+  });
+
+  it("exposes the promised stable parts in ready, loading, and error states", async () => {
+    const ready = elementWith(new FakeRenderer()); ready.data = dataset; document.body.append(ready); await ready.activate(); await settle(ready);
+    for (const part of ["controls", "results", "result-row", "map", "status"]) expect(ready.shadowRoot?.querySelector(`[part~="${part}"]`), part).toBeTruthy();
+
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    const loading = elementWith(new FakeRenderer(), "manual"); loading.src = "/pending.json"; document.body.append(loading); await settle(loading);
+    expect(loading.shadowRoot?.querySelector('[part~="status"]')).toBeTruthy();
+
+    const invalid = elementWith(new FakeRenderer(), "manual"); invalid.data = { ...dataset, schemaVersion: 2 } as unknown as FreeMapDataset; document.body.append(invalid); await settle(invalid);
+    expect(invalid.shadowRoot?.querySelector('[part~="errors"]')).toBeTruthy();
   });
 
   it("coalesces same-turn renderer updates", async () => {

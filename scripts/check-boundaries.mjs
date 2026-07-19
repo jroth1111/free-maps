@@ -4,6 +4,7 @@ const rules = [
   { files: ["dist/core.js", "dist/cloudflare.js"], forbidden: ["maplibre-gl", "from\"lit\"", "from\"react\"", "document.", "customElements"] },
   { files: ["dist/element.js"], forbidden: ["maplibre-gl", "from\"react\""] },
   { files: ["dist/react.js"], forbidden: ["maplibre-gl"] },
+  { files: ["dist/vector.js"], forbidden: ["maplibre-gl", "from\"react\""] },
 ];
 const failures = [];
 for (const rule of rules) for (const file of rule.files) {

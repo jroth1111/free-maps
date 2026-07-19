@@ -41,6 +41,10 @@
       "types": "./dist/maplibre.d.ts",
       "import": "./dist/maplibre.js"
     },
+    "./vector": {
+      "types": "./dist/vector.d.ts",
+      "import": "./dist/vector.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
@@ -49,8 +53,8 @@
       "types": "./dist/cloudflare.d.ts",
       "import": "./dist/cloudflare.js"
     },
-    "./themes/heritage.css": "./dist/themes/heritage.css",
-    "./themes/heritage-dark.css": "./dist/themes/heritage-dark.css",
+    "./themes/atlas.css": "./dist/themes/atlas.css",
+    "./themes/atlas-dark.css": "./dist/themes/atlas-dark.css",
     "./package.json": "./package.json"
   },
   "peerDependencies": {
@@ -66,7 +70,9 @@
     }
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^2.0.5",
     "lit": "^3.3.1",
+    "pbf": "^4.0.2",
     "pmtiles": "^4.3.0"
   },
   "devDependencies": {
