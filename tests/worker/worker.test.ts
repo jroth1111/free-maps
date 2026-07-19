@@ -35,6 +35,7 @@ describe("Worker endpoints", () => {
     const validGet = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, gatewayContext);
     expect(validGet.status).toBe(200);
     expect(await validGet.text()).toBe("cached dataset entrypoint");
+    expect(validGet.headers.get("cloudflare-cdn-cache-control")).toBe("no-store");
     expect(datasetCalls).toBe(1);
 
     const validHead = await worker.fetch(request("/api/v1/demo-dataset?size=5000", { method: "HEAD" }), env as unknown as Env, gatewayContext);
