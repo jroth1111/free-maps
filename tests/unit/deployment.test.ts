@@ -10,7 +10,9 @@ describe("deployment routing", () => {
     };
     const headers = readFileSync(resolve("public/_headers"), "utf8");
 
-    expect(config.assets?.run_worker_first).toEqual(["/api/*", "/tiles/*"]);
+    expect(config.assets?.run_worker_first).toEqual([
+      "/api/*", "/tiles/*", "/", "/embed", "/embed/", "/states", "/states/", "/vanilla", "/vanilla/", "/react", "/react/", "/stress", "/stress/",
+    ]);
     expect(config.exports?.default?.cache?.enabled).toBe(false);
     expect(headers).not.toMatch(/\/fonts\/(?:Noto|ui\/)/);
     for (const section of headers.split(/\n(?=\/)/).filter((value) => !/^\/(?:assets|fonts\/v|map-assets\/v)/.test(value))) {
