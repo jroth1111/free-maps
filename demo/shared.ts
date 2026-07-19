@@ -1,8 +1,14 @@
 import { openStreetMapUrl, type FreeMapElementOptions, type MapRendererFactory } from "../src/core";
 import { defineFreeMapElements } from "../src/element";
+import { loadMapLibre } from "../src/maplibre/loader";
 
 export const renderer: MapRendererFactory = async () => {
-  const { MapLibreRenderer } = await import("../src/maplibre");
+  const rendererModule = import("../src/maplibre");
+  // Eligibility is established before the renderer factory runs. Start the
+  // optional peer beside the small renderer shell so neither creates a
+  // serial network waterfall; mount owns the awaited shared promise.
+  void loadMapLibre().catch(() => undefined);
+  const { MapLibreRenderer } = await rendererModule;
   return new MapLibreRenderer({
     styleUrl: "/map-assets/v0.3.0/heritage-light.json",
     styleIsKnownValid: true,
