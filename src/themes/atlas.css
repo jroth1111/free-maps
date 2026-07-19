@@ -35,6 +35,11 @@
   --free-map-surface-canvas: #f8f5ef;
   --free-map-surface: #fffdf9;
   --free-map-surface-muted: #f2eee6;
+  --free-map-surface-elevated: #fffdf9;
+  --free-map-surface-selected: #f7e8e9;
+  --free-map-accent-soft: #f3dfe2;
+  --free-map-sheet-surface: #fffdf9;
+  --free-map-sheet-handle: #8b8177;
   --free-map-text: #22201e;
   --free-map-text-muted: #665f57;
   --free-map-border-color: #d9d1c4;
@@ -54,5 +59,7 @@
   --free-map-cluster-text: #ffffff;
   --free-map-radius-small: 0.25rem;
   --free-map-radius: 0.4rem;
+  --free-map-radius-pill: 999px;
   --free-map-shadow-control: 0 2px 8px rgb(34 32 30 / 0.14);
+  --free-map-shadow-panel: 0 16px 36px rgb(34 32 30 / .2);
 }

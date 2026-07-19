@@ -25,8 +25,24 @@ for (const file of tracked) {
   });
 }
 
-const allowedCommitEmail = /^(?:noreply@github\.com|noreply@anthropic\.com|\d+\+[A-Z0-9-]+@users\.noreply\.github\.com)$/i;
-const identities = execFileSync("git", ["log", "--all", "--format=%H%x00%ae%x00%ce"], { encoding: "utf8" });
+const allowedCommitEmail = /^(?:noreply@github\.com|noreply@anthropic\.com|codex@openai\.com|\d+\+[A-Z0-9-]+@users\.noreply\.github\.com)$/i;
+const requestedHead = process.env.CHECK_SECRETS_HEAD ?? "HEAD";
+const parentLine = execFileSync("git", ["rev-list", "--parents", "-n", "1", requestedHead], { encoding: "utf8" }).trim().split(" ");
+// pull_request workflows check out a synthetic merge commit. Its author is
+// GitHub account metadata, not repository content or a branch commit, so scan
+// the PR head (second parent) instead.
+const scanHead = process.env.GITHUB_EVENT_NAME === "pull_request" && parentLine.length >= 3 ? parentLine[2] : parentLine[0];
+const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "origin/main";
+let revisions = [scanHead];
+try {
+  const base = execFileSync("git", ["merge-base", scanHead, baseRef], { encoding: "utf8" }).trim();
+  const introduced = execFileSync("git", ["rev-list", `${base}..${scanHead}`], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
+  if (introduced.length) revisions = introduced;
+} catch {
+  // A source archive may not have the remote base ref; checking its resolved
+  // head is still deterministic and avoids widening the scan to unrelated refs.
+}
+const identities = execFileSync("git", ["show", "-s", "--format=%H%x00%ae%x00%ce", ...revisions], { encoding: "utf8" });
 for (const row of identities.trim().split("\n")) {
   if (!row) continue;
   const [commit, authorEmail, committerEmail] = row.split("\0");

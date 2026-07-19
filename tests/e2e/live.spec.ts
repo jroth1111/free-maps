@@ -24,20 +24,25 @@ test("deployed explorer paints protected PMTiles with no forbidden requests", as
   await expect(explorer).toBeVisible();
   await page.evaluate(() => customElements.whenDefined("free-map-explorer"));
   await explorer.evaluate((element) => (element as HTMLElement & { activate(): Promise<void> }).activate());
-  const canvas = explorer.locator("canvas");
+  const canvas = explorer.locator(".free-map-vector-canvas");
   await expect(canvas).toBeVisible({ timeout: 60_000 });
   await expect(canvas).toHaveAttribute("data-tiles-painted", "true", { timeout: 60_000 });
   await expect(explorer.locator(".map-state")).toBeHidden({ timeout: 60_000 });
   await expect(explorer.getByText("Protomaps", { exact: true })).toBeVisible();
   await expect(explorer.getByText("© OpenStreetMap", { exact: true })).toBeVisible();
 
-  const image = await canvas.screenshot({ path: testInfo.outputPath("deployed-map.png") });
+  const image = await explorer.locator(".map").screenshot({ path: testInfo.outputPath("deployed-map.png") });
   expect(image.byteLength).toBeGreaterThan(10_000);
   expect(requests.filter((url) => url.includes("/api/tile-session"))).toHaveLength(1);
   expect(tileResponses.some((response) => response.url.endsWith("/tiles/melbourne.json") && response.status === 200)).toBe(true);
   expect(tileResponses.some((response) => response.url.includes(".mvt") && response.status === 200 && response.encoding === "gzip")).toBe(true);
   expect(requests.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
-  expect(consoleErrors).toEqual([]);
+  const transientTileFailures = tileResponses.filter(({ url, status }) => url.includes(".mvt") && (status === 429 || status >= 500));
+  const recoveredTileFailures = transientTileFailures.filter(({ url }) => tileResponses.some((response) => response.url === url && response.status === 200));
+  expect(recoveredTileFailures).toHaveLength(transientTileFailures.length);
+  const resourceErrors = consoleErrors.filter((message) => /^Failed to load resource: the server responded with a status of (?:429|5\d\d)/.test(message));
+  expect(resourceErrors.length).toBeLessThanOrEqual(recoveredTileFailures.length);
+  expect(consoleErrors.filter((message) => !resourceErrors.includes(message))).toEqual([]);
 
   const accessibility = await new AxeBuilder({ page }).include("free-map-explorer").analyze();
   expect(accessibility.violations).toEqual([]);

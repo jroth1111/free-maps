@@ -16,5 +16,10 @@ if (dirty) {
 }
 
 const commit = run("git", ["rev-parse", "HEAD"]);
+const preview = process.argv.slice(2);
+if (preview.length > 1 || (preview.length === 1 && preview[0] !== "--preview")) {
+  console.error("Usage: node scripts/deploy.mjs [--preview]");
+  process.exit(1);
+}
 run("npm", ["run", "build"], { stdio: "inherit" });
-run("npx", ["wrangler", "deploy", "--var", `GIT_COMMIT:${commit}`], { stdio: "inherit" });
+run("npx", ["wrangler", "deploy", "--env", preview.length ? "preview" : "", "--var", `GIT_COMMIT:${commit}`], { stdio: "inherit" });

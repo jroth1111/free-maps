@@ -1,5 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
-import { calculateBounds, parseFreeMapDataset, type FreeMapActivation, type FreeMapDataset, type FreeMapErrorDetail, type MapRenderer, type MapRendererFactory, type MapRendererState } from "../core";
+import { calculateBounds, parseFreeMapDataset, type FreeMapActivation, type FreeMapDataset, type FreeMapErrorDetail, type MapRenderer, type MapRendererFactory, type MapRendererState, type MapViewportDetail } from "../core";
 import { mapMountScheduler } from "./scheduler";
 
 const markRendererUpdate = (): void => { performance.mark?.("free-maps:renderer-update"); };
@@ -10,6 +10,7 @@ type RuntimeHost = ReactiveControllerHost & HTMLElement & {
   runtimeContainer(): HTMLElement | undefined;
   runtimeState(): MapRendererState | null;
   runtimeSelect(id: string | null): void;
+  runtimeViewport(detail: MapViewportDetail): void;
 };
 
 let registeredRenderer: MapRendererFactory | null = null;
@@ -161,7 +162,7 @@ export class FreeMapRuntimeController implements ReactiveController {
         await yieldMainThread();
         if (signal.aborted || !this.connected) { this.rendererInstance.destroy(); throw new DOMException("Map initialization cancelled", "AbortError"); }
         try {
-          await this.rendererInstance.mount(container, state, (id) => this.host.runtimeSelect(id));
+          await this.rendererInstance.mount(container, state, (id) => this.host.runtimeSelect(id), { onViewportChange: (detail) => this.host.runtimeViewport(detail) });
           if (signal.aborted || !this.connected) { this.rendererInstance.destroy(); throw new DOMException("Map initialization cancelled", "AbortError"); }
           this.host.dispatchEvent(new CustomEvent("free-map-ready", { bubbles: true, composed: true, detail: { datasetId: state.dataset.id, pointCount: state.dataset.points.length, mappedCount: state.points.length } }));
         } catch (cause) { if (!signal.aborted && this.connected) this.report("renderer-runtime", cause, true); throw cause; }

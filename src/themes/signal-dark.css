@@ -1,0 +1,35 @@
+:where(.free-map-theme-signal-dark) {
+  color-scheme: dark;
+  --free-map-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --free-map-heading-font-family: var(--free-map-font-family);
+  --free-map-surface-canvas: #0b1220;
+  --free-map-surface: #111827;
+  --free-map-surface-muted: #1e293b;
+  --free-map-surface-elevated: #1e293b;
+  --free-map-surface-selected: #18364a;
+  --free-map-accent-soft: #18364a;
+  --free-map-sheet-surface: #111827;
+  --free-map-sheet-handle: #94a3b8;
+  --free-map-text: #f8fafc;
+  --free-map-text-muted: #cbd5e1;
+  --free-map-border-color: #475569;
+  --free-map-accent: #38bdf8;
+  --free-map-accent-hover: #7dd3fc;
+  --free-map-on-accent: #082f49;
+  --free-map-focus: #7dd3fc;
+  --free-map-control-surface: #1e293b;
+  --free-map-control-text: #f8fafc;
+  --free-map-control-border: #64748b;
+  --free-map-marker: #38bdf8;
+  --free-map-marker-selected: #fb7185;
+  --free-map-marker-stroke: #111827;
+  --free-map-cluster: #38bdf8;
+  --free-map-cluster-medium: #0ea5e9;
+  --free-map-cluster-large: #0284c7;
+  --free-map-cluster-text: #082f49;
+  --free-map-radius-small: .375rem;
+  --free-map-radius: .75rem;
+  --free-map-radius-pill: 999px;
+  --free-map-shadow-control: 0 2px 10px rgb(0 0 0 / .45);
+  --free-map-shadow-panel: 0 18px 42px rgb(0 0 0 / .58);
+}

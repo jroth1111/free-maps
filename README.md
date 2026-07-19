@@ -31,11 +31,12 @@ The hosted demo uses the first-party canvas renderer. It fetches the same scoped
 
 ```ts
 import { defineFreeMapElements } from "free-maps/element";
-import { createVectorCanvasRenderer } from "free-maps/vector";
+import { createVectorCanvasRenderer, neutralLightBasemap } from "free-maps/vector";
 
 defineFreeMapElements({
   renderer: createVectorCanvasRenderer({
     tileJsonUrl: "/tiles/melbourne.json",
+    basemapStyle: neutralLightBasemap,
     tileSession: {
       endpoint: "/api/tile-session",
       protectedUrlPrefix: "/tiles/",
@@ -74,7 +75,22 @@ document.body.append(explorer);
 
 `data` takes precedence over `src`. Assigning non-null `data` cancels an active dataset request; assigning `null` lets `src` load again. `activation` is `visible`, `eager`, or `manual`; manual elements load their renderer only after `activate()`.
 
-Public methods are `activate()`, `reload()`, `select(id | null)`, `fitAll()`, and `resetView()`. Events are `free-map-ready`, `free-map-select`, `free-map-filter-change`, and `free-map-error`.
+Public methods are `activate()`, `reload()`, `select(id | null)`, `fitAll()`, and `resetView()`. Events are `free-map-ready`, `free-map-select`, `free-map-filter-change`, `free-map-search-area`, and `free-map-error`.
+
+`layout="responsive"` is the default: desktop and iPad use a collapsible left rail, while mobile starts at the half-height snap point of a map-first bottom sheet. Use `layout="stack"` for static document flow. Compact maps retain their map-only layout.
+
+Quick filters are callbacks and do not change dataset schema v1. Query, category, and every active quick filter use AND semantics. Unknown and duplicate active ids are ignored; repeated `filter=` parameters round-trip through `FreeMapUrlState`.
+
+```ts
+explorer.options = {
+  quickFilters: [
+    { id: "open-now", label: "Open now", matches: (point) => point.metadata?.openNow === true },
+  ],
+  searchArea: true,
+};
+```
+
+`searchArea` defaults to `false`. When enabled, a renderer that reports viewport changes reveals “Search this area” only after user pan or zoom. Clicking dispatches the current bounds, center, zoom, and cause; it never fetches or filters data.
 
 ## Themes, tokens, and parts
 
@@ -82,7 +98,7 @@ The element bundle contains structural CSS and accessible neutral fallback value
 
 ```ts
 import "free-maps/themes/atlas.css";
-// Or: import "free-maps/themes/atlas-dark.css";
+// Also independent: atlas-dark.css, signal.css, signal-dark.css, contrast.css
 
 explorer.classList.add("free-map-theme-atlas");
 ```
@@ -90,14 +106,14 @@ explorer.classList.add("free-map-theme-atlas");
 Published tokens:
 
 - Typography: `--free-map-font-family`, `--free-map-heading-font-family`
-- Surfaces: `--free-map-surface-canvas`, `--free-map-surface`, `--free-map-surface-muted`
+- Surfaces: `--free-map-surface-canvas`, `--free-map-surface`, `--free-map-surface-muted`, `--free-map-surface-elevated`, `--free-map-surface-selected`, `--free-map-accent-soft`, `--free-map-sheet-surface`, `--free-map-sheet-handle`
 - Text and borders: `--free-map-text`, `--free-map-text-muted`, `--free-map-border-color`
 - Accent and focus: `--free-map-accent`, `--free-map-accent-hover`, `--free-map-on-accent`, `--free-map-focus`
 - Controls: `--free-map-control-surface`, `--free-map-control-text`, `--free-map-control-border`
 - Markers and clusters: `--free-map-marker`, `--free-map-marker-selected`, `--free-map-marker-stroke`, `--free-map-cluster`, `--free-map-cluster-medium`, `--free-map-cluster-large`, `--free-map-cluster-text`
-- Shape and elevation: `--free-map-radius-small`, `--free-map-radius`, `--free-map-shadow-control`
+- Shape and elevation: `--free-map-radius-small`, `--free-map-radius`, `--free-map-radius-pill`, `--free-map-shadow-control`, `--free-map-shadow-panel`
 
-Virtual-row heights and layout-critical dimensions are private. Stable styling hooks are `::part(controls)`, `::part(results)`, `::part(result-row)`, `::part(map)`, `::part(status)`, and `::part(errors)`. Additional parts may exist but are not part of this stability promise.
+Virtual-row heights and layout-critical dimensions are private. Stable styling hooks are `::part(controls)`, `::part(filter-bar)`, `::part(filter-chip)`, `::part(rail)`, `::part(rail-toggle)`, `::part(sheet)`, `::part(sheet-handle)`, `::part(search-area-button)`, `::part(results)`, `::part(result-row)`, `::part(map)`, `::part(status)`, and `::part(errors)`.
 
 When a page contains multiple explorers, give each host a distinct `aria-label`; the element prefixes its map and results landmark names with that label.
 
@@ -149,23 +165,23 @@ An injected `cache` is optional. Internal keys include namespace, cache version,
 
 ## Demo routes and performance
 
-The static MPA routes are `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, and `/stress/`. The explorer preserves `q`, `category`, `sort`, and `point`; unknown routes use a real `404.html`. React loads only on `/react/`.
+The static MPA routes are `/`, `/embed/`, `/states/`, `/vanilla/`, `/react/`, and `/stress/`. The explorer preserves `q`, `category`, `sort`, repeated `filter`, and `point`; unknown routes use a real `404.html`. React loads only on `/react/`.
 
 The demo does not request MapLibre. It loads the vector renderer only after stable paint and activation eligibility. Compatible maps share expiring tile-session promises, initialization is concurrency-one through first paint, and renderer updates are coalesced. The 5,000-point route keeps fewer than 60 result rows mounted.
 
 ### Current Lighthouse results
 
-The most recent pinned Ubuntu acceptance matrix (2026-07-19) uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across mobile, iPad, and desktop profiles. Performance medians range from **98 to 100**, the lowest individual run is **96**, and **all 30** route/profile/cache rows meet the ≥98 median floor. Accessibility, Best Practices, SEO, and Agentic Browsing are **100 in every row**.
+The accepted live-candidate matrix from 2026-07-20 uses Lighthouse 13.4.0 and Chrome for Testing 151.0.7922.34: three cold and three primed-warm runs for each of five routes across pinned mobile, iPad, and desktop profiles. Performance is **100 in all 90 reports**, including every individual run. Accessibility, Best Practices, SEO, and Agentic Browsing are also **100 in all 90 reports**.
 
 | Route | Cold Performance medians | Warm Performance medians |
 | --- | --- | --- |
-| `/` | 98–100 | 99–100 |
-| `/embed/` | 98–100 | 98–100 |
-| `/states/` | 98–100 | 99–100 |
-| `/vanilla/` | 98–100 | 99–100 |
-| `/react/` | 98–100 | 99–100 |
+| `/` | 100 | 100 |
+| `/embed/` | 100 | 100 |
+| `/states/` | 100 | 100 |
+| `/vanilla/` | 100 | 100 |
+| `/react/` | 100 | 100 |
 
-Mobile and iPad medians are **100 on every route in both cache modes**. Cold desktop medians are 98; warm desktop medians are 98–99. The remaining desktop variance comes from Lighthouse's simulated paint model despite observed paint near 90 ms and 0–9 ms blocking time on the affected cold runs. Production remains on v0.2.0 until the reviewed candidate is promoted. See [the full candidate evidence](docs/RELEASE_NOTES_v0.3.0.md).
+Mobile, iPad, and desktop scores are **100 on every route, in every individual run, in both cache modes**. See [the accepted release evidence](docs/RELEASE_NOTES_v0.3.0.md).
 
 See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/UI_VERIFICATION.md](docs/UI_VERIFICATION.md).
 

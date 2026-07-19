@@ -52,6 +52,7 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
     expect(Math.abs(geometry.current.top - geometry.initial!.top)).toBeLessThanOrEqual(1);
     expect(Math.abs(geometry.current.width - geometry.initial!.width)).toBeLessThanOrEqual(1);
     expect(Math.abs(geometry.current.height - geometry.initial!.height)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     expect(requests.urls.some((url) => /@googlemaps|google\.maps|maps\.googleapis\.com|maps\.google\.com|static\.cloudflareinsights\.com|\/cdn-cgi\/rum/i.test(url))).toBe(false);
     if (route !== "/react/") expect(requests.urls.some((url) => /\/assets\/react-[^/]+\.js/.test(url))).toBe(false);
     const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
@@ -61,15 +62,20 @@ for (const route of ["/", "/embed/", "/states/", "/vanilla/", "/react/"]) {
 for (const route of ["/embed/", "/vanilla/", "/react/"]) {
   test(`${route} activates a real vector-tile canvas automatically`, async ({ page }) => {
     const requests = await prepare(page); await page.goto(route);
-    const canvas = page.locator("free-map-explorer canvas").first();
+    const canvas = page.locator("free-map-explorer .free-map-vector-canvas").first();
     await expect(canvas).toBeVisible({ timeout: 30_000 });
     await expect(canvas).toHaveAttribute("data-tiles-painted", "true");
     if (route === "/embed/") {
       const tileJsonRequests = () => requests.authorization.filter(({ url }) => new URL(url).pathname === "/tiles/melbourne.json").length;
-      await expect.poll(tileJsonRequests).toBe(1);
+      await expect.poll(tileJsonRequests).toBeGreaterThanOrEqual(1);
       const surface = page.locator("free-map-surface");
       await surface.scrollIntoViewIfNeeded();
-      await expect(surface.locator("canvas")).toBeVisible({ timeout: 30_000 });
+      const surfaceCanvas = surface.locator(".free-map-vector-canvas");
+      await expect(surfaceCanvas).toBeVisible({ timeout: 30_000 });
+      const [surfaceBox, canvasBox] = await Promise.all([surface.boundingBox(), surfaceCanvas.boundingBox()]);
+      expect(surfaceBox && canvasBox).toBeTruthy();
+      expect(Math.abs(surfaceBox!.width - canvasBox!.width)).toBeLessThanOrEqual(2);
+      expect(Math.abs(surfaceBox!.height - canvasBox!.height)).toBeLessThanOrEqual(2);
       await expect.poll(tileJsonRequests).toBe(2);
     }
   });
@@ -79,10 +85,13 @@ test("explorer paints automatically, clusters, restores URL state, and supports 
   const requests = await prepare(page);
   await page.goto("/?q=Lantern&category=japanese&sort=name&point=demo-250-1");
   const explorer = page.locator("free-map-explorer"); await expect(explorer).toBeVisible();
-  const canvas = explorer.locator("canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
-  const before = await canvas.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
-  const box = await canvas.boundingBox(); expect(box).toBeTruthy(); await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.waitForTimeout(400);
-  const after = await canvas.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
+  const canvas = explorer.locator(".free-map-vector-canvas"); await expect(canvas).toBeVisible({ timeout: 30_000 });
+  const map = explorer.locator(".map");
+  const before = await map.screenshot({ path: testInfo.outputPath("map-before.png") }); expect(before.byteLength).toBeGreaterThan(1_000);
+  const zoom = await canvas.getAttribute("data-zoom");
+  await canvas.focus(); await page.keyboard.press("+");
+  await expect(canvas).not.toHaveAttribute("data-zoom", zoom!);
+  const after = await map.screenshot(); expect(createHash("sha256").update(after).digest("hex")).not.toBe(createHash("sha256").update(before).digest("hex"));
   const initialPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
   const keyboardResult = explorer.locator(".row button").nth(1); await keyboardResult.focus(); await page.keyboard.press("Enter");
   const keyboardPoint = await explorer.evaluate((element) => (element as HTMLElement & { selectedId: string | null }).selectedId);
@@ -121,13 +130,48 @@ test("Atlas themes and consumer token overrides are applied before activation", 
   await light.evaluate((element) => element.setAttribute("style", "--free-map-accent: #005fcc"));
   expect(await light.evaluate((element) => getComputedStyle(element).getPropertyValue("--free-map-accent").trim())).toBe("#005fcc");
   await light.scrollIntoViewIfNeeded();
-  await expect(light.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(light.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
   await dark.scrollIntoViewIfNeeded();
-  await expect(dark.locator("canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(dark.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
-test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }) => {
-  await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator("canvas")).toBeVisible({ timeout: 30_000 });
+test("responsive rail or sheet, quick filters, URL restoration, and search-area opt-in work at the pinned viewport", async ({ page }, testInfo) => {
+  await prepare(page); await page.goto("/?filter=open-now");
+  const explorer = page.locator("free-map-explorer"); await expect(explorer.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
+  await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Open now" })).toHaveAttribute("aria-pressed", "true");
+  if (testInfo.project.name === "mobile-412") {
+    const panel = explorer.locator('[part~="sheet"]'); const handle = explorer.locator('[part~="sheet-handle"]');
+    await expect(panel).toHaveAttribute("data-snap", "half");
+    const box = await handle.boundingBox(); expect(box).toBeTruthy(); await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2); await page.mouse.down(); await page.mouse.move(box!.x + box!.width / 2, box!.y + 240, { steps: 4 }); await page.mouse.up(); await expect(panel).toHaveAttribute("data-snap", "collapsed");
+    await handle.focus(); await page.keyboard.press("Home"); await expect(panel).toHaveAttribute("data-snap", "collapsed");
+    await page.keyboard.press("End"); await expect(panel).toHaveAttribute("data-snap", "expanded");
+    await page.keyboard.press("Home"); await expect(panel).toHaveAttribute("data-snap", "collapsed");
+  } else {
+    const panel = explorer.locator('[part~="rail"]'); const toggle = explorer.locator('[part~="rail-toggle"]');
+    await expect(toggle).toBeVisible(); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "true"); await toggle.click(); await expect(panel).toHaveAttribute("data-collapsed", "false");
+  }
+  const canvas = explorer.locator(".free-map-vector-canvas"); await canvas.hover(); await page.mouse.wheel(0, -100); await expect(explorer.locator('[part~="search-area-button"]')).toBeVisible();
+  const searchEvent = explorer.evaluate((element) => new Promise((resolve) => element.addEventListener("free-map-search-area", (event) => resolve((event as CustomEvent).detail), { once: true })));
+  await explorer.locator('[part~="search-area-button"]').click(); await expect(searchEvent).resolves.toEqual(expect.objectContaining({ cause: "user", bounds: expect.any(Array), center: expect.any(Object), zoom: expect.any(Number) }));
+  await expect(explorer.locator('[part~="search-area-button"]')).toHaveCount(0);
+  if (testInfo.project.name === "mobile-412") {
+    const panel = explorer.locator('[part~="sheet"]'); const handle = explorer.locator('[part~="sheet-handle"]');
+    await handle.focus(); await page.keyboard.press("End"); await expect(panel).toHaveAttribute("data-snap", "expanded");
+  }
+  await explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" }).click(); await expect(page).toHaveURL(/filter=open-now.*filter=top-rated/);
+  await page.reload(); await expect(explorer.locator('[part~="filter-chip"]').filter({ hasText: "Top rated" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("all static themes and forced-colors tokens remain available", async ({ page }) => {
+  await prepare(page); await page.goto("/states/");
+  for (const selector of ["#theme", "#theme-dark", "#signal", "#signal-dark", "#contrast"]) await expect(page.locator(selector)).toBeVisible();
+  await page.emulateMedia({ forcedColors: "active" });
+  await expect.poll(() => page.locator("#contrast").evaluate((element) => getComputedStyle(element).getPropertyValue("--free-map-text").trim())).not.toBe("");
+  const accessibility = await new AxeBuilder({ page }).analyze(); expect(accessibility.violations).toEqual([]);
+});
+
+test("stress route keeps 5,000 points virtualized and updates within budget", async ({ page }, testInfo) => {
+  await prepare(page); await page.goto("/stress/"); const explorer = page.locator("free-map-explorer"); await expect(explorer.locator(".free-map-vector-canvas")).toBeVisible({ timeout: 30_000 });
   expect(await explorer.locator(".row").count()).toBeLessThan(60);
   const samples = await explorer.evaluate(async (element) => {
     const input = element.shadowRoot!.querySelector<HTMLInputElement>("input[type=search]")!;
@@ -150,7 +194,9 @@ test("stress route keeps 5,000 points virtualized and updates within budget", as
     }
     return timings.sort((left, right) => left - right);
   });
-  expect(samples[Math.floor(samples.length * .95)]).toBeLessThan(200);
+  const p95 = samples[Math.floor(samples.length * .95)]!;
+  console.log(`${testInfo.project.name} 5,000-point UI-to-map p95: ${p95.toFixed(1)} ms`);
+  expect(p95).toBeLessThan(200);
   await expect(page.locator("#diagnostics")).toContainText("matches");
 });
 

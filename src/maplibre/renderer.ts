@@ -1,6 +1,6 @@
 import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import type { FeatureCollection, Point } from "geojson";
-import { type MapRenderer, type MapRendererState, type RenderablePoint } from "../core";
+import { type MapRenderer, type MapRendererMountOptions, type MapRendererState, type MapViewportCause, type RenderablePoint } from "../core";
 import { loadMapLibre } from "./loader";
 import { getSharedTileSession, resolveProtectedPrefix, resolveTileHeaders, scopedRequestHeaders, type TileHeaders, type TileSessionOptions } from "./session";
 import { loadMapStyle } from "./style";
@@ -25,6 +25,7 @@ interface RendererColors {
 }
 
 const color = (styles: CSSStyleDeclaration, name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+export const classifyViewportCause = (event: { originalEvent?: Event } | undefined): MapViewportCause => event?.originalEvent ? "user" : "programmatic";
 
 export function resolveRendererColors(container: HTMLElement): RendererColors {
   const styles = getComputedStyle(container);
@@ -96,13 +97,16 @@ export class MapLibreRenderer implements MapRenderer {
   private abort = new AbortController();
   private pendingState?: MapRendererState;
   private updatePromise?: Promise<void>;
+  private onViewportChange?: MapRendererMountOptions["onViewportChange"];
+  private viewportCause: MapViewportCause = "programmatic";
 
   constructor(private options: MapLibreRendererOptions) { assertRendererOptions(options); }
 
-  async mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void) {
+  async mount(container: HTMLElement, state: MapRendererState, onSelect: (id: string) => void, mountOptions?: MapRendererMountOptions) {
     if (this.map) { await this.update(state); return; }
     this.state = state;
     this.onSelect = onSelect;
+    this.onViewportChange = mountOptions?.onViewportChange;
     const colors = resolveRendererColors(container);
     const stylesheet = document.createElement("style");
     stylesheet.dataset.freeMapsMaplibre = "";
@@ -147,6 +151,13 @@ export class MapLibreRenderer implements MapRenderer {
       },
     });
     this.map = map;
+    map.on("movestart", (event) => { const cause = classifyViewportCause(event as unknown as { originalEvent?: Event }); if (cause === "user") this.viewportCause = cause; });
+    map.on("moveend", () => {
+      const bounds = map.getBounds();
+      const center = map.getCenter();
+      this.onViewportChange?.({ bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], center: { lat: center.lat, lng: center.lng }, zoom: map.getZoom(), cause: this.viewportCause });
+      this.viewportCause = "programmatic";
+    });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     await new Promise<void>((resolve, reject) => { map.once("load", () => resolve()); map.once("error", (event: MapLibreErrorEvent) => reject(event.error)); });
     if (this.abort.signal.aborted) throw new DOMException("Map activation was cancelled", "AbortError");
@@ -160,6 +171,7 @@ export class MapLibreRenderer implements MapRenderer {
       const clusterId = feature?.properties?.cluster_id as number | undefined;
       if (clusterId == null) return;
       const zoom = await (map.getSource(SOURCE) as GeoJSONSource).getClusterExpansionZoom(clusterId);
+      this.viewportCause = "user";
       map.easeTo({ center: (feature!.geometry as Point).coordinates as [number, number], zoom });
     });
     map.on("click", POINTS, (event: MapLayerMouseEvent) => { const id = event.features?.[0]?.properties?.id as string | undefined; if (id) this.onSelect?.(id); });
@@ -188,7 +200,7 @@ export class MapLibreRenderer implements MapRenderer {
         if (selectionChanged) {
           this.applySelection(latest.selectedId);
           const selected = latest.points.find((point) => point.id === latest.selectedId);
-          if (selected) this.map.easeTo({ center: [selected.lng, selected.lat], zoom: Math.max(this.map.getZoom(), 17) });
+          if (selected) { this.viewportCause = "programmatic"; this.map.easeTo({ center: [selected.lng, selected.lat], zoom: Math.max(this.map.getZoom(), 17) }); }
         }
       }).finally(() => { this.updatePromise = undefined; if (this.pendingState) void this.update(this.pendingState); });
     }
@@ -204,10 +216,11 @@ export class MapLibreRenderer implements MapRenderer {
 
   fitBounds(bounds: [number, number, number, number]) {
     if (!this.map) return;
+    this.viewportCause = "programmatic";
     if (bounds[0] === bounds[2] && bounds[1] === bounds[3]) this.map.easeTo({ center: [bounds[0], bounds[1]], zoom: 16 });
     else this.map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 56, maxZoom: 16 });
   }
 
-  resetView() { if (this.map && this.state) this.map.easeTo({ center: [this.state.dataset.center.lng, this.state.dataset.center.lat], zoom: this.state.dataset.defaultZoom }); }
+  resetView() { if (this.map && this.state) { this.viewportCause = "programmatic"; this.map.easeTo({ center: [this.state.dataset.center.lng, this.state.dataset.center.lat], zoom: this.state.dataset.defaultZoom }); } }
   destroy() { this.abort.abort(); this.map?.remove(); this.map = undefined; this.stylesheet?.remove(); this.stylesheet = undefined; }
 }

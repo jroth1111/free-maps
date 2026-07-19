@@ -55,6 +55,13 @@ const allowedTileOrigin = (request: Request, env: Env) => {
   return requestOrigin;
 };
 const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", "), "Cache-Control": "no-store" } });
+const bypassOuterCdn = (response: Response): Response => {
+  const headers = new Headers(response.headers);
+  // Apply this only after the cached entrypoint has returned. Setting it on
+  // Dataset itself also disables the version-aware Workers cache.
+  headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+};
 
 const datasetResponse = (request: Request, env: Env): Response => {
   const url = new URL(request.url);
@@ -63,7 +70,6 @@ const datasetResponse = (request: Request, env: Env): Response => {
   const cacheHeaders = {
     ETag: etag,
     "Cache-Control": "public, max-age=300",
-    "Cloudflare-CDN-Cache-Control": "public, max-age=3600, stale-while-revalidate=1800",
     "Cache-Tag": `free-maps-dataset,free-maps-dataset-${env.APP_VERSION}`,
     "Access-Control-Allow-Origin": "*",
     "X-Free-Maps-Invocation": crypto.randomUUID(),
@@ -94,7 +100,10 @@ export default {
       const rejected = methodAllowed(request, ["GET", "HEAD"]); if (rejected) return rejected;
       const rawSize = url.searchParams.get("size") ?? "250";
       if (rawSize !== "250" && rawSize !== "5000") return json({ error: "size must be 250 or 5000" }, { status: 400 });
-      return context.exports.Dataset.fetch(request);
+      // Dataset owns the version-scoped Workers cache. Only the gateway-facing
+      // response bypasses the custom-domain zone cache, otherwise the same
+      // no-store directive would prevent Dataset itself from warming.
+      return bypassOuterCdn(await context.exports.Dataset.fetch(request));
     }
     if (url.pathname === "/api/tile-session") {
       const rejected = methodAllowed(request, ["POST"]); if (rejected) return rejected;

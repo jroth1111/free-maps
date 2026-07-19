@@ -1,4 +1,4 @@
-import type { FreeMapCategory, FreeMapPoint, FreeMapSort } from "./types";
+import type { FreeMapCategory, FreeMapDataset, FreeMapPoint, FreeMapQuickFilter, FreeMapSort } from "./types";
 
 export const normalizeSearchText = (value: string): string => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -38,10 +38,11 @@ const nullableDesc = (a: number | null | undefined, b: number | null | undefined
   return b! - a!;
 };
 
-export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking"): FreeMapPoint[] {
-  const q = normalizeSearchText(query);
-  const members = category === "all" ? null : resolveCategoryMembers(categories, category);
-  const rows = indexed.filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))));
+export type IndexedPointSortCache = Map<FreeMapSort, { indexed: IndexedFreeMapPoint[]; rows: IndexedFreeMapPoint[] }>;
+const sortedIndexedPoints = (indexed: IndexedFreeMapPoint[], sort: FreeMapSort, cache?: IndexedPointSortCache): IndexedFreeMapPoint[] => {
+  const cached = cache?.get(sort);
+  if (cached?.indexed === indexed) return cached.rows;
+  const rows = [...indexed];
   rows.sort((left, right) => {
     const a = left.point;
     const b = right.point;
@@ -55,5 +56,41 @@ export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: 
     }
     return primary || compareText(a.title, b.title) || compareText(a.id, b.id);
   });
-  return rows.map(({ point }) => point);
+  cache?.set(sort, { indexed, rows });
+  return rows;
+};
+
+export function normalizeQuickFilters(filters: FreeMapQuickFilter[] = []): FreeMapQuickFilter[] {
+  const seen = new Set<string>();
+  return filters.filter((filter) => {
+    const id = filter.id.trim();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export function normalizeActiveFilters(active: readonly string[] = [], filters: readonly FreeMapQuickFilter[] = []): string[] {
+  const declared = new Set(filters.map((filter) => filter.id));
+  const activeSet = new Set(active);
+  return filters.flatMap((filter) => declared.has(filter.id) && activeSet.has(filter.id) ? [filter.id] : []);
+}
+
+const filterSortedPoints = (sorted: IndexedFreeMapPoint[], categories: FreeMapCategory[], query: string, category: string, dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] => {
+  const q = normalizeSearchText(query);
+  const members = category === "all" ? null : resolveCategoryMembers(categories, category);
+  const active = new Set(activeFilters);
+  const predicates = quickFilters.filter((filter) => active.has(filter.id));
+  return sorted
+    .filter(({ point, searchText }) => (!q || searchText.includes(q)) && (!members || point.categoryIds.some((id) => members.has(id))) && (!dataset || predicates.every((filter) => filter.matches(point, dataset))))
+    .map(({ point }) => point);
+};
+
+export function filterAndSortPoints(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query = "", category = "all", sort: FreeMapSort = "ranking", dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
+  return filterSortedPoints(sortedIndexedPoints(indexed, sort), categories, query, category, dataset, quickFilters, activeFilters);
+}
+
+/** Internal element fast path; the cache is owner-scoped so mutable caller arrays cannot leak stale order globally. */
+export function filterAndSortPointsMemoized(indexed: IndexedFreeMapPoint[], categories: FreeMapCategory[], query: string, category: string, sort: FreeMapSort, cache: IndexedPointSortCache, dataset?: FreeMapDataset, quickFilters: readonly FreeMapQuickFilter[] = [], activeFilters: readonly string[] = []): FreeMapPoint[] {
+  return filterSortedPoints(sortedIndexedPoints(indexed, sort, cache), categories, query, category, dataset, quickFilters, activeFilters);
 }

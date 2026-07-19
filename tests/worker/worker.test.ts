@@ -35,6 +35,7 @@ describe("Worker endpoints", () => {
     const validGet = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, gatewayContext);
     expect(validGet.status).toBe(200);
     expect(await validGet.text()).toBe("cached dataset entrypoint");
+    expect(validGet.headers.get("cloudflare-cdn-cache-control")).toBe("no-store");
     expect(datasetCalls).toBe(1);
 
     const validHead = await worker.fetch(request("/api/v1/demo-dataset?size=5000", { method: "HEAD" }), env as unknown as Env, gatewayContext);
@@ -57,9 +58,9 @@ describe("Worker endpoints", () => {
     const health = await worker.fetch(request("/api/health"), env as unknown as Env, context);
     expect(health.status).toBe(200); expect(health.headers.get("cache-control")).toBe("no-store"); expect(await health.json()).toMatchObject({ ok: true, version: "0.3.0-test", basemapVersion: "20260717" });
     const first = await worker.fetch(request("/api/v1/demo-dataset?size=250"), env as unknown as Env, context);
-    expect(first.status).toBe(200); expect((await first.json() as { points: unknown[] }).points).toHaveLength(250);
+    expect(first.status).toBe(200); expect(first.headers.get("cloudflare-cdn-cache-control")).toBe("no-store"); expect((await first.json() as { points: unknown[] }).points).toHaveLength(250);
     const cached = await worker.fetch(request("/api/v1/demo-dataset?size=250", { headers: { "if-none-match": first.headers.get("etag")! } }), env as unknown as Env, context);
-    expect(cached.status).toBe(304);
+    expect(cached.status).toBe(304); expect(cached.headers.get("cloudflare-cdn-cache-control")).toBe("no-store");
     expect((await worker.fetch(request("/api/v1/demo-dataset?size=7"), env as unknown as Env, context)).status).toBe(400);
     const wrongMethod = await worker.fetch(request("/api/health", { method: "POST" }), env as unknown as Env, context);
     expect(wrongMethod.status).toBe(405); expect(wrongMethod.headers.get("cache-control")).toBe("no-store");

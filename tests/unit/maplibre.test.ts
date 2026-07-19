@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assertRendererOptions } from "../../src/maplibre/renderer";
+import { assertRendererOptions, classifyViewportCause } from "../../src/maplibre/renderer";
 import { clearSharedTileSessionsForTests, getSharedTileSession, matchesProtectedUrl, resolveProtectedPrefix, scopedRequestHeaders } from "../../src/maplibre/session";
 import { clearSharedMapStylesForTests, loadMapStyle } from "../../src/maplibre/style";
 import { structuralStyles } from "../../src/element/styles";
@@ -13,6 +13,11 @@ afterEach(() => {
 });
 
 describe("explicit MapLibre configuration", () => {
+  it("classifies native viewport gestures without treating programmatic moves as user input", () => {
+    expect(classifyViewportCause(undefined)).toBe("programmatic");
+    expect(classifyViewportCause({})).toBe("programmatic");
+    expect(classifyViewportCause({ originalEvent: new Event("wheel") })).toBe("user");
+  });
   it("requires workerUrl and exactly one basemap style source", () => {
     expect(() => assertRendererOptions({ workerUrl: "", style: inlineStyle })).toThrow(/workerUrl is required/);
     expect(() => assertRendererOptions({ workerUrl: "/worker-v1.js" })).toThrow(/exactly one/);

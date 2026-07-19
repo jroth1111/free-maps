@@ -4,18 +4,6 @@
   X-Content-Type-Options: nosniff
   Permissions-Policy: geolocation=(), camera=(), microphone=()
 
-/fonts/Noto*
-  Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
-
-/fonts/ui/*
-  Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
-
-/map-assets/atlas-light*
-  Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
-
 /fonts/v0.3.0/*
   Cache-Control: public, max-age=31536000, immutable
   Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable
@@ -30,44 +18,44 @@
 
 /favicon.svg
   Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+  Cloudflare-CDN-Cache-Control: no-store
 
 /robots.txt
   Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+  Cloudflare-CDN-Cache-Control: no-store
 
 /sitemap.xml
   Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+  Cloudflare-CDN-Cache-Control: no-store
 
 /llms.txt
   Cache-Control: public, max-age=300, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=1800
+  Cloudflare-CDN-Cache-Control: no-store
 
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /embed/
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /states/
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /vanilla/
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /react/
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store
 
 /stress/
   Cache-Control: public, max-age=0, must-revalidate
-  Cloudflare-CDN-Cache-Control: public, max-age=600, stale-while-revalidate=900
+  Cloudflare-CDN-Cache-Control: no-store

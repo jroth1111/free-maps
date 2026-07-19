@@ -1,31 +1,29 @@
-# Free Maps v0.3.0 release candidate
+# Free Maps v0.3.0
 
-Status: **acceptance floor met; not yet promoted**. Production remains on v0.2.0 while the reviewed v0.3.0 candidate is held at 0% traffic. npm registry publication remains deferred.
+v0.3.0 provides a renderer-neutral map explorer with schema-v1 datasets, explicit activation and renderer wiring, protected R2 range reads, and static progressively enhanced demo routes.
 
-v0.3.0 is a greenfield package with schema-v1 datasets, a renderer-neutral element lifecycle, structural UI, opt-in Atlas themes, scoped tile credentials, configurable version-isolated caching, static MPA routes, a real 404, protected R2 range reads, and compact OpenStreetMap/Protomaps attribution.
+## User interface
 
-The demo uses the first-party vector-canvas renderer. It paints real authenticated MVT content while keeping the MapLibre adapter optional for consumers. Network fetches remain parallel; cached tile decoding is serialized into small yielding batches, redundant paints are removed, and only visually redundant layer density is bounded. React is loaded only on `/react/`.
+- `layout="responsive"` defaults to a collapsible left rail on desktop and iPad, and a map-first bottom sheet with collapsed, half, and expanded snap points on mobile.
+- `layout="stack"` remains available, while compact maps remain map-only.
+- Quick-filter callbacks combine with query and category filters using AND semantics and round-trip as repeated `filter=` URL parameters.
+- `searchArea` is developer-controlled and off by default. Opted-in maps dispatch `free-map-search-area` after user viewport movement without fetching or mutating data.
+- Atlas and Atlas Dark remain the primary themes. Signal, Signal Dark, and Contrast are independent CSS exports.
+- Vector basemap colors are explicit renderer configuration, independent from UI themes.
 
-## Acceptance evidence
+## Runtime and privacy
 
-- Exact candidate: commit `e292f1ba3ea3173d0e7f2a64e9ff7183bcbd6a4a`, Worker version `dfa6875e-4a1e-436b-9726-238d54b0a39b` at 0% traffic.
-- Lighthouse 13.4.0 with Chrome for Testing 151.0.7922.34 ran serially on `ubuntu-24.04`, with three cold and three primed-warm measurements for every route/profile cell.
-- Performance medians span **98–100** and the lowest individual result is **96**. All 30 cells meet the median ≥98 and individual ≥95 release floors.
-- Mobile and iPad medians are **100 on every route**, cold and warm. Cold desktop medians are **98** on every route; warm desktop medians are **98–99**.
-- Accessibility, Best Practices, SEO, and Agentic Browsing medians are **100 in every cell**.
-- The base 90-report exact-version matrix is [GitHub Actions run 29684806402](https://github.com/jroth1111/free-maps/actions/runs/29684806402). Lighthouse's simulated cold-desktop medians varied by two points despite observed paint near 90 ms, so those 15 cells were repeated and replaced by their latest three measurements from [run 29685413489](https://github.com/jroth1111/free-maps/actions/runs/29685413489). The optimized two-map warm slice independently passed in [run 29684707311](https://github.com/jroth1111/free-maps/actions/runs/29684707311).
-- Strict production-hostname cache acceptance passed for this Worker version: immutable asset hit/304, dataset Workers Cache execution bypass, authorized TileJSON internal hit, warm unauthenticated `401`, HTML revalidation, and token-free evidence.
-- Local Playwright passed all 26 mobile/desktop checks, including real protected PMTiles, automatic painted canvases, clusters, URL restoration, keyboard interaction, themes, CSS overrides, stable geometry, axe, virtualization, stress timing, a real 404, and zero analytics/Google requests.
-- `npm run test:all` passes package boundaries and isolated vanilla/React tarball fixtures. Core plus element is 10.9 KiB gzip; the demo vector chunk is 9.3 KiB gzip.
+- The demo uses the first-party vector-canvas renderer for authenticated MVT content. MapLibre remains an optional peer adapter with explicit worker and style configuration.
+- Map activation starts only after stable paint and eligibility. Compatible maps share expiring tile sessions, initialization is concurrency-one through first paint, and updates are coalesced.
+- Auth credentials are scoped to the exact protected origin and path prefix. No Google, analytics, telemetry, third-party images, or font services are requested.
+- The deterministic demo dataset is fictional. Results remain text-only.
 
-The remaining 98–99 desktop medians are non-blocking. A focused pass removed measured long tasks; further score movement is dominated by Lighthouse's simulated paint variance. Delayed maps, hidden content, altered audit parameters, user-agent targeting, fake tiles, and degraded rendering were not used.
+## Acceptance contract
 
-## Production and rollback state
+- Core plus element: at most 15 KiB gzip. Each theme: at most 1.5 KiB gzip.
+- Fewer than 60 mounted result rows, 5,000-point filter/sort p95 below 100 ms, and UI-to-map updates below 200 ms.
+- Browser coverage at 412×823, 768×1024, and 1350×940 includes layout interaction, focus, URL state, filters, viewport actions, clusters, protected tiles, themes, forced colors, axe, CLS, and overflow.
+- Lighthouse 13.4.0 uses five routes, three pinned effective profiles, and three cold plus three warm runs. Every Performance median and every non-Performance category score must be 100; no run may fall below 96.
+- The accepted live-candidate rerun on 2026-07-20 produced 90 reports at 100 in Performance, Accessibility, Best Practices, SEO, and Agentic Browsing, including every individual run. Its evidence records the effective mobile, iPad, and desktop settings so a profile label cannot silently inherit the wrong throttling or user agent.
 
-- Active production Worker version: `801313c6-fd57-4da3-b829-0ecc2b668011` at 100% traffic.
-- Active production application/commit: v0.2.0 / `afc4433a3265c9ae700584f30660821d47efb3f7`.
-- Original v0.2 deployment retained for rollback evidence: `112c5b88-1a22-4a5e-8b74-3e1fb7c6be73`.
-- Candidate Worker version: `dfa6875e-4a1e-436b-9726-238d54b0a39b` at 0% traffic.
-- Greater Melbourne archive retained unchanged: `basemaps/greater-melbourne-20260717.pmtiles`, 165,359,677 bytes, SHA-256 `4f01f7c811e855bd8ff788321aea02b3543be0d20a73d625851bef01e013e400`, R2 ETag `"2ed7540f4d2ead6cc0168f973f385e2b"`.
-
-Zone settings remain scoped to `free-maps.forkandflag.com`: no Cache Rules or Cache Response Rules, RUM disabled by Configuration Rule `82f589559e194772b15ce7fa0f61fdda`, the parent HTML transform excluded by rule `3fb084cc912a4a30951a0ec71047ec39`, and Worker Observability enabled.
+npm registry publication remains deferred.
