@@ -97,7 +97,7 @@ export default {
           version: env.BASEMAP_VERSION,
           request,
           context,
-          corsOrigin: origin,
+          corsOrigin: session.origin,
           cachePolicy: {
             namespace: env.TILE_CACHE_NAMESPACE,
             version: env.TILE_CACHE_VERSION,
