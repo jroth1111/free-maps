@@ -15,8 +15,9 @@ describe("deployment routing", () => {
     ]);
     expect(config.exports?.default?.cache?.enabled).toBe(false);
     expect(headers).not.toMatch(/\/fonts\/(?:Noto|ui\/)/);
-    for (const section of headers.split(/\n(?=\/)/).filter((value) => !/^\/(?:assets|fonts\/v|map-assets\/v)/.test(value))) {
-      expect(section).not.toContain("Cloudflare-CDN-Cache-Control");
+    for (const section of headers.split(/\n(?=\/)/).filter((value) => value.split("\n", 1)[0] !== "/*" && !/^\/(?:assets|fonts\/v|map-assets\/v)/.test(value))) {
+      expect(section).toContain("Cloudflare-CDN-Cache-Control: no-store");
+      expect(section).not.toMatch(/Cloudflare-CDN-Cache-Control: public/);
     }
   });
 

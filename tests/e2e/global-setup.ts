@@ -33,7 +33,7 @@ export default async function waitForVersionOverride(): Promise<void> {
         if (mismatches.length) {
           lastFailure = `static HTML did not match the selected build for ${mismatches.join(", ")}`;
           consecutiveReadyRounds = 0;
-        } else if (++consecutiveReadyRounds === 3) return;
+        } else if (++consecutiveReadyRounds === 10) return;
       }
     } catch (error) {
       lastFailure = error instanceof Error ? error.message : String(error);

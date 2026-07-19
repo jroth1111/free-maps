@@ -18,33 +18,44 @@
 
 /favicon.svg
   Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /robots.txt
   Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /sitemap.xml
   Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /llms.txt
   Cache-Control: public, max-age=300, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /embed/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /states/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /vanilla/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /react/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
 
 /stress/
   Cache-Control: public, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
