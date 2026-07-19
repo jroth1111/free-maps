@@ -1,13 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const liveBaseURL = process.env.LIVE_BASE_URL;
+const baseURL = liveBaseURL ?? "http://127.0.0.1:4173";
 
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: [["html", { open: "never" }], ["list"]],
-  use: { baseURL: "http://127.0.0.1:4173", trace: "retain-on-failure", screenshot: "only-on-failure" },
+  use: { baseURL, trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
