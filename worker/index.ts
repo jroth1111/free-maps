@@ -20,16 +20,24 @@ export interface Env {
 const json = (value: unknown, init: ResponseInit = {}) => { const headers = new Headers(init.headers); headers.set("Content-Type", "application/json; charset=utf-8"); if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(value), { ...init, headers }); };
 const headless = (request: Request, response: Response) => request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response;
 const isLocalOrigin = (origin: string) => { try { const url = new URL(origin); return (url.hostname === "localhost" || url.hostname === "127.0.0.1") && (url.protocol === "http:" || url.protocol === "https:"); } catch { return false; } };
+const publicRequestOrigin = (request: Request) => {
+  const url = new URL(request.url);
+  // Cloudflare version previews can expose run_worker_first requests to the
+  // isolate as http even though their only public browser origin is HTTPS.
+  if (url.protocol === "http:" && url.hostname.endsWith(".workers.dev")) url.protocol = "https:";
+  return url.origin;
+};
 const allowedOrigin = (request: Request, env: Env) => {
   const origin = request.headers.get("origin") ?? "";
   const requestUrl = new URL(request.url);
+  const requestOrigin = publicRequestOrigin(request);
   const productionHost = new URL(env.PRODUCTION_ORIGIN).hostname;
   const isProduction = requestUrl.hostname === productionHost;
-  if (origin === env.PRODUCTION_ORIGIN || (!isProduction && (isLocalOrigin(origin) || origin === requestUrl.origin))) return origin;
+  if (origin === env.PRODUCTION_ORIGIN || (!isProduction && (isLocalOrigin(origin) || origin === requestOrigin))) return origin;
   const referer = request.headers.get("referer");
   if (!origin && referer) {
     const refererOrigin = new URL(referer).origin;
-    if (refererOrigin === requestUrl.origin && (requestUrl.origin === env.PRODUCTION_ORIGIN || !isProduction && isLocalOrigin(requestUrl.origin))) return requestUrl.origin;
+    if (refererOrigin === requestOrigin && (requestOrigin === env.PRODUCTION_ORIGIN || !isProduction && isLocalOrigin(requestOrigin))) return requestOrigin;
   }
   return null;
 };
@@ -37,7 +45,7 @@ const allowedTileOrigin = (request: Request, env: Env) => {
   const supplied = request.headers.get("origin");
   if (supplied) return allowedOrigin(request, env);
   const requestUrl = new URL(request.url);
-  const requestOrigin = requestUrl.origin;
+  const requestOrigin = publicRequestOrigin(request);
   return requestOrigin === env.PRODUCTION_ORIGIN || requestUrl.hostname !== new URL(env.PRODUCTION_ORIGIN).hostname ? requestOrigin : null;
 };
 const methodAllowed = (request: Request, methods: string[]) => methods.includes(request.method) ? null : new Response("Method not allowed", { status: 405, headers: { Allow: methods.join(", "), "Cache-Control": "no-store" } });
@@ -74,7 +82,13 @@ export default {
       // URL itself is the exact browser origin to which the token was bound.
       const origin = allowedTileOrigin(request, env);
       const token = bearerToken(request);
-      if (!origin || !token || !(await verifyTileSession(env.TILE_SESSION_SECRET, token, origin))) return json({ error: "Valid origin-bound tile session required" }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+      const session = origin && token ? await verifyTileSession(env.TILE_SESSION_SECRET, token, origin) : null;
+      if (!session) {
+        const reason = !origin ? "origin" : !token ? "credentials" : "session";
+        const headers: Record<string, string> = { "Cache-Control": "private, no-store", "X-Free-Maps-Auth": `rejected-${reason}` };
+        if (origin) { headers["Access-Control-Allow-Origin"] = origin; headers.Vary = "Origin"; }
+        return json({ error: "Valid origin-bound tile session required" }, { status: 401, headers });
+      }
       try {
         return await handlePmtilesRequest({
           bucket: env.BASEMAP,

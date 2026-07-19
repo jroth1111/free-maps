@@ -47,7 +47,13 @@ describe("Worker endpoints", () => {
     expect(workerBody.byteLength).toBeGreaterThan(0);
     expect([...workerBody.slice(0, 2)]).not.toEqual([0x1f, 0x8b]);
     expect((await worker.fetch(request("/tiles/20260717/melbourne/25/0/0.mvt", { headers }), env as unknown as Env, context)).status).toBe(400);
-    expect((await worker.fetch(new Request("http://localhost/tiles/melbourne.json", { headers: { origin: "http://localhost:9999", authorization: `Bearer ${token}` } }), env as unknown as Env, context)).status).toBe(401);
+    const wrongOrigin = await worker.fetch(new Request("http://localhost/tiles/melbourne.json", { headers: { origin: "http://localhost:9999", authorization: `Bearer ${token}` } }), env as unknown as Env, context);
+    expect(wrongOrigin.status).toBe(401);
+    expect(wrongOrigin.headers.get("x-free-maps-auth")).toBe("rejected-session");
+    expect(wrongOrigin.headers.get("access-control-allow-origin")).toBe("http://localhost:9999");
+    const missingCredentials = await worker.fetch(request("/tiles/melbourne.json"), env as unknown as Env, context);
+    expect(missingCredentials.status).toBe(401);
+    expect(missingCredentials.headers.get("x-free-maps-auth")).toBe("rejected-credentials");
     await waitOnExecutionContext(context);
   });
 
@@ -67,6 +73,18 @@ describe("Worker endpoints", () => {
     const tileJson = await worker.fetch(new Request(`${pageOrigin}/tiles/melbourne.json`, { headers: { authorization: `Bearer ${token}` } }), env as unknown as Env, context);
     expect(tileJson.status).toBe(200);
     expect(tileJson.headers.get("access-control-allow-origin")).toBe(pageOrigin);
+    await waitOnExecutionContext(context);
+  });
+
+  it("normalizes the internal HTTP URL used by HTTPS workers.dev previews", async () => {
+    await env.BASEMAP.put("basemaps/greater-melbourne-20260717.pmtiles", fixture);
+    const context = createExecutionContext();
+    const previewOrigin = "https://v0-3-preview-free-maps.example.workers.dev";
+    const sessionResponse = await worker.fetch(new Request(`${previewOrigin}/api/tile-session`, { method: "POST", headers: { origin: previewOrigin } }), env as unknown as Env, context);
+    const { token } = await sessionResponse.json() as { token: string };
+    const tileJson = await worker.fetch(new Request("http://v0-3-preview-free-maps.example.workers.dev/tiles/melbourne.json", { headers: { authorization: `Bearer ${token}` } }), env as unknown as Env, context);
+    expect(tileJson.status).toBe(200);
+    expect(tileJson.headers.get("access-control-allow-origin")).toBe(previewOrigin);
     await waitOnExecutionContext(context);
   });
 
