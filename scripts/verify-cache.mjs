@@ -44,9 +44,10 @@ const datasetWarm = await capture("datasetWarm", "/api/v1/demo-dataset?size=250"
 expect(datasetCold.headers.get("cache-control")?.includes("max-age=300"), "Dataset browser TTL must be five minutes");
 expect(datasetCold.headers.get("etag")?.includes(`demo-${packageVersion}-250`), `Dataset cache must contain the deployed ${packageVersion} response`);
 if (strict) {
-  // Cloudflare consumes and strips Cloudflare-CDN-Cache-Control before the
-  // response reaches the client; Cf-Cache-Status is the observable proof.
-  expect(datasetWarm.headers.get("cf-cache-status") !== "HIT", "Dataset must not be served by the outer zone CDN");
+  // The gateway applies this after the named entrypoint has completed its
+  // own cache lookup. A HIT here is therefore the expected version-scoped
+  // Workers cache, while the outward no-store keeps the zone cache bypassed.
+  expect(datasetCold.headers.get("cloudflare-cdn-cache-control") === "no-store", "Dataset gateway response must bypass the outer zone CDN");
   expect(Boolean(datasetCold.headers.get("x-free-maps-invocation")), "Cold dataset response must expose a non-secret invocation id");
   expect(datasetCold.headers.get("x-free-maps-invocation") === datasetWarm.headers.get("x-free-maps-invocation"), "Warm dataset must preserve the cached invocation id and bypass Worker execution");
 }
